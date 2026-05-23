@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { signUp } from "@/lib/auth/actions";
+import { LiquidBackground } from "@/components/liquid-background";
 import styles from "../auth.module.css";
 
 export default function SignupPage() {
@@ -10,6 +11,7 @@ export default function SignupPage() {
 
   return (
     <div className={styles.page}>
+      <LiquidBackground />
       <div className={styles.card}>
         {/* Brand */}
         <div className={styles.brand}>

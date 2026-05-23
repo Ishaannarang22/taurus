@@ -1,0 +1,98 @@
+/* Liquid-flow animated background.
+   Pure CSS, GPU-composited (transform/opacity only), no JS, no layout work.
+   Large blurred color fields drift and breathe behind page content.
+   Palette mirrors the Taurus accent hues used by the chat "thinking" state. */
+
+.root {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+  /* Tinted base so the blobs melt into something, not raw white. */
+  background:
+    radial-gradient(120% 120% at 50% 0%, #fbfbfa 0%, #f3f1ee 55%, #ecebe8 100%);
+  pointer-events: none;
+}
+
+/* A single drifting color field. position:absolute + blur = liquid bleed. */
+.blob {
+  position: absolute;
+  width: 52vmax;
+  height: 52vmax;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.55;
+  mix-blend-mode: multiply;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+.coral {
+  background: radial-gradient(circle at 30% 30%, #ff5d73 0%, rgba(255, 93, 115, 0) 70%);
+  top: -14vmax;
+  left: -10vmax;
+  animation: drift-coral 22s ease-in-out infinite alternate;
+}
+
+.amber {
+  background: radial-gradient(circle at 30% 30%, #ffb02e 0%, rgba(255, 176, 46, 0) 70%);
+  top: -8vmax;
+  right: -14vmax;
+  animation: drift-amber 26s ease-in-out infinite alternate;
+}
+
+.azure {
+  background: radial-gradient(circle at 30% 30%, #3aa0ff 0%, rgba(58, 160, 255, 0) 70%);
+  bottom: -16vmax;
+  left: 8vmax;
+  animation: drift-azure 30s ease-in-out infinite alternate;
+}
+
+.violet {
+  background: radial-gradient(circle at 30% 30%, #9b5dff 0%, rgba(155, 93, 255, 0) 70%);
+  bottom: -18vmax;
+  right: -8vmax;
+  animation: drift-violet 24s ease-in-out infinite alternate;
+}
+
+/* Each blob takes a different looping path so the field never repeats cleanly. */
+@keyframes drift-coral {
+  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
+  50%  { transform: translate(22vmax, 14vmax) scale(1.18) rotate(28deg); }
+  100% { transform: translate(8vmax, 30vmax) scale(0.92) rotate(-12deg); }
+}
+
+@keyframes drift-amber {
+  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
+  50%  { transform: translate(-20vmax, 18vmax) scale(1.22) rotate(-24deg); }
+  100% { transform: translate(-6vmax, 4vmax) scale(0.9) rotate(16deg); }
+}
+
+@keyframes drift-azure {
+  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
+  50%  { transform: translate(26vmax, -16vmax) scale(1.15) rotate(20deg); }
+  100% { transform: translate(40vmax, -4vmax) scale(0.95) rotate(-18deg); }
+}
+
+@keyframes drift-violet {
+  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
+  50%  { transform: translate(-24vmax, -20vmax) scale(1.2) rotate(26deg); }
+  100% { transform: translate(-10vmax, -32vmax) scale(0.88) rotate(-14deg); }
+}
+
+/* Fine grain over the top kills gradient banding and adds texture. */
+.grain {
+  position: absolute;
+  inset: -50%;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
+/* Stillness for motion-sensitive users: keep the color, drop the drift. */
+@media (prefers-reduced-motion: reduce) {
+  .blob {
+    animation: none;
+  }
+}

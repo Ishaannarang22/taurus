@@ -18,6 +18,7 @@ import {
   executeOrder,
   type ExecuteOrderDeps,
 } from "../engine/execute-order";
+import { placeKiteOrder } from "../kite/orders";
 import { listPositions, listStrategies } from "../data/queries";
 
 type SbClient = SupabaseClient<Database>;
@@ -205,9 +206,10 @@ export function buildTools(
     declaration: {
       name: "place_order",
       description:
-        "Place a paper buy or sell order for a stock. " +
-        "Guardrails (cash cap, long-only sell-to-reduce) are enforced in code. " +
-        "Specify either quantity (shares) or notional (dollars), not both.",
+        "Place a buy or sell order for an NSE stock (amounts in ₹). " +
+        "Always recorded in the paper portfolio; when live trading is armed it " +
+        "is also sent to Zerodha (AMO after hours, regular during market hours). " +
+        "Specify either quantity (shares) or notional (₹), not both.",
       parameters: {
         type: "object",
         properties: {
@@ -261,7 +263,26 @@ export function buildTools(
           maxNotional: scope.maxOrderNotional,
         });
         if (result.ok) {
-          return { ok: true, data: result };
+          // Mirror to the real broker when live trading is armed. NSE equities
+          // are whole-share, so round the (possibly fractional) paper qty down.
+          let kite: unknown;
+          if (process.env.KITE_LIVE_TRADING === "true") {
+            const qtyInt = Math.floor(result.qty);
+            kite =
+              qtyInt >= 1
+                ? await placeKiteOrder({
+                    symbol,
+                    side,
+                    quantity: qtyInt,
+                    orderType: "MARKET",
+                    lastPrice: result.price,
+                  })
+                : {
+                    ok: false,
+                    error: `paper qty ${result.qty} rounds below 1 share; no live order placed`,
+                  };
+          }
+          return { ok: true, data: { ...result, kite } };
         }
         return { ok: false, error: result.error };
       } catch (err) {
