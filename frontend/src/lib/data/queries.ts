@@ -367,7 +367,14 @@ export async function getStrategyDetail(
     const pos = posMap.get(leg.instrument_id);
     const lastPrice = instr ? (prices.get(instr.symbol) ?? null) : null;
     const qty = pos?.quantity ?? 0;
-    const mktValue = lastPrice !== null ? qty * lastPrice : null;
+    // For basket legs that have not been filled yet, show the latest price so
+    // the created ETF still has useful per-leg market context instead of ₹0.
+    const mktValue =
+      lastPrice !== null
+        ? qty > 0
+          ? qty * lastPrice
+          : lastPrice
+        : null;
 
     return {
       symbol: instr?.symbol ?? leg.instrument_id,
@@ -669,22 +676,36 @@ export async function getPerformanceSeries(
         ? accountCreatedAt.slice(0, 10)
         : cutoff.toISOString().slice(0, 10);
 
-    // Best-effort current total value: cash + cost basis of open positions.
+    // Current total value: cash + marked value of open positions, falling back
+    // to cost basis when quotes are unavailable.
     const { data: openPos } = await db
       .from("positions")
-      .select("quantity, avg_entry_price")
+      .select("quantity, avg_entry_price, instruments(symbol)")
       .eq("paper_account_id", accountId)
       .gt("quantity", 0);
 
-    type OpenPosRow = { quantity: number; avg_entry_price: number | null };
-    const investedCost = ((openPos ?? []) as OpenPosRow[]).reduce(
-      (s: number, p: OpenPosRow) => s + p.quantity * (p.avg_entry_price ?? 0),
-      0,
-    );
+    type OpenPosRow = {
+      quantity: number;
+      avg_entry_price: number | null;
+      instruments: { symbol: string } | null;
+    };
+    const openRows = (openPos ?? []) as OpenPosRow[];
+    const symbols = [
+      ...new Set(
+        openRows.flatMap((p) => (p.instruments ? [p.instruments.symbol] : [])),
+      ),
+    ];
+    const prices = await fetchLastPrices(symbols);
+    const investedValue = openRows.reduce((sum, p) => {
+      const price = p.instruments
+        ? (prices.get(p.instruments.symbol) ?? p.avg_entry_price ?? 0)
+        : (p.avg_entry_price ?? 0);
+      return sum + p.quantity * price;
+    }, 0);
 
     return [
       { t: startDate, value: startingCash },
-      { t: todayStr, value: currentCash + investedCost },
+      { t: todayStr, value: currentCash + investedValue },
     ];
   }
 
@@ -744,4 +765,133 @@ export async function getPerformanceSeries(
   return Array.from(dayMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([t, value]) => ({ t, value }));
+}
+
+// ---------------------------------------------------------------------------
+// getStrategyPerformanceSeries
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a weighted historical performance series for a strategy basket.
+ *
+ * This is distinct from account performance: it answers "how would this basket
+ * have moved historically?" immediately after strategy creation, before paper
+ * fills exist. Values are normalized so the latest point equals currentValue.
+ */
+export async function getStrategyPerformanceSeries(
+  db: DbClient,
+  strategyId: string,
+): Promise<PerformancePoint[]> {
+  const { data: rawLegs, error } = await db
+    .from("strategy_legs")
+    .select("target_weight, instruments(symbol)")
+    .eq("strategy_id", strategyId);
+
+  if (error) throw new Error(`strategy performance legs fetch: ${error.message}`);
+
+  type LegRow = {
+    target_weight: number;
+    instruments: { symbol: string } | null;
+  };
+
+  const legs = ((rawLegs ?? []) as unknown as LegRow[])
+    .filter((leg) => leg.instruments?.symbol && leg.target_weight > 0)
+    .map((leg) => ({
+      symbol: leg.instruments!.symbol.toUpperCase(),
+      weight: leg.target_weight,
+    }));
+
+  if (legs.length === 0) {
+    return [];
+  }
+
+  const totalWeight = legs.reduce((sum, leg) => sum + leg.weight, 0);
+  const normalizedLegs = legs.map((leg) => ({
+    ...leg,
+    weight: leg.weight / totalWeight,
+  }));
+
+  const histories = await Promise.all(
+    normalizedLegs.map(async (leg) => ({
+      ...leg,
+      prices: await fetchYahooDailyHistory(leg.symbol),
+    })),
+  );
+
+  const usable = histories.filter((history) => history.prices.length > 1);
+  if (usable.length === 0) {
+    return [];
+  }
+
+  const latestBySymbol = new Map<string, number>();
+  for (const history of usable) {
+    latestBySymbol.set(history.symbol, history.prices[history.prices.length - 1].close);
+  }
+
+  const byDate = new Map<string, Array<{ weight: number; ratio: number }>>();
+  for (const history of usable) {
+    const latest = latestBySymbol.get(history.symbol);
+    if (!latest || latest <= 0) continue;
+
+    for (const point of history.prices) {
+      const ratio = point.close / latest;
+      const bucket = byDate.get(point.t) ?? [];
+      bucket.push({ weight: history.weight, ratio });
+      byDate.set(point.t, bucket);
+    }
+  }
+
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([t, bucket]) => {
+      const presentWeight = bucket.reduce((sum, point) => sum + point.weight, 0);
+      const weightedRatio =
+        presentWeight > 0
+          ? bucket.reduce((sum, point) => sum + point.weight * point.ratio, 0) /
+            presentWeight
+          : 1;
+      return { t, value: weightedRatio };
+    });
+}
+
+async function fetchYahooDailyHistory(
+  symbol: string,
+): Promise<Array<{ t: string; close: number }>> {
+  const yahooSymbol = `${symbol.toUpperCase()}.NS`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+    yahooSymbol,
+  )}?range=5y&interval=1d`;
+
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) return [];
+
+  const json = (await res.json()) as YahooHistoricalChartResponse;
+  const result = json.chart?.result?.[0];
+  const timestamps = result?.timestamp ?? [];
+  const closes = result?.indicators?.quote?.[0]?.close ?? [];
+
+  const points: Array<{ t: string; close: number }> = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const close = closes[i];
+    if (typeof close !== "number" || !(close > 0)) continue;
+    points.push({
+      t: new Date(timestamps[i] * 1000).toISOString().slice(0, 10),
+      close,
+    });
+  }
+
+  return points;
+}
+
+interface YahooHistoricalChartResponse {
+  chart?: {
+    result?: Array<{
+      timestamp?: number[];
+      indicators?: {
+        quote?: Array<{
+          close?: Array<number | null>;
+        }>;
+      };
+    }>;
+  };
 }

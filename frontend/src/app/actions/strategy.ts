@@ -7,10 +7,15 @@
  * GEMINI_API_KEY and SUPABASE_SERVICE_ROLE_KEY never leave the server.
  */
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { generateBasket } from "@/lib/gemini/generate";
+import { requireUser } from "@/lib/auth/session";
+import { getOrCreatePaperAccount } from "@/lib/data/queries";
 import type { StrategySpec } from "@/lib/domain/types";
+import { getMarketDataProvider } from "@/lib/market";
+import { createOrderBookOrder } from "@/lib/orders/place-order";
 
 // ---------------------------------------------------------------------------
 // generateStrategyAction
@@ -249,4 +254,147 @@ export async function saveStrategyAction(
   }
 
   return strategyId;
+}
+
+export interface InvestStrategyState {
+  ok?: boolean;
+  message?: string;
+  error?: string;
+}
+
+export async function investStrategyAction(
+  _prevState: InvestStrategyState | undefined,
+  formData: FormData,
+): Promise<InvestStrategyState> {
+  const user = await requireUser();
+  const db = await createClient();
+  const strategyId = String(formData.get("strategyId") ?? "");
+
+  if (!strategyId) {
+    return { ok: false, error: "Missing strategy id." };
+  }
+
+  const { data: strategy, error: strategyError } = await db
+    .from("strategies")
+    .select("id, user_id, status, parameters")
+    .eq("id", strategyId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (strategyError) {
+    return { ok: false, error: `Strategy lookup failed: ${strategyError.message}` };
+  }
+
+  if (!strategy) {
+    return { ok: false, error: "Strategy not found." };
+  }
+
+  if (strategy.status !== "active") {
+    return { ok: false, error: "Only active strategies can be invested." };
+  }
+
+  const { data: rawLegs, error: legsError } = await db
+    .from("strategy_legs")
+    .select("target_weight, entry_price, side, instruments!inner(symbol)")
+    .eq("strategy_id", strategyId)
+    .eq("user_id", user.id);
+
+  if (legsError) {
+    return { ok: false, error: `Strategy legs lookup failed: ${legsError.message}` };
+  }
+
+  type LegRow = {
+    target_weight: number;
+    entry_price: number | null;
+    side: "buy" | "sell";
+    instruments: { symbol: string };
+  };
+  const legs = (rawLegs ?? []) as unknown as LegRow[];
+
+  if (legs.length === 0) {
+    return { ok: false, error: "This strategy has no basket legs." };
+  }
+
+  const account = await getOrCreatePaperAccount(db);
+  const params = (strategy.parameters ?? {}) as Record<string, unknown>;
+  const cashReservePct =
+    typeof params.cashReservePct === "number" ? params.cashReservePct : 0;
+  const spendableCash = Math.max(0, account.cashBalance * (1 - cashReservePct));
+
+  if (spendableCash <= 0) {
+    return { ok: false, error: "No spendable cash available for this basket." };
+  }
+
+  let quotes: Map<string, number>;
+  try {
+    const provider = getMarketDataProvider();
+    const symbols = [...new Set(legs.map((leg) => leg.instruments.symbol))];
+    const quoteRows = await provider.getQuotes(symbols);
+    quotes = new Map(quoteRows.map((quote) => [quote.symbol, quote.price]));
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Could not price basket: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  let placed = 0;
+  const skipped: string[] = [];
+
+  for (const leg of legs) {
+    const symbol = leg.instruments.symbol;
+    const price = quotes.get(symbol);
+
+    if (!price || price <= 0) {
+      skipped.push(`${symbol}: no quote`);
+      continue;
+    }
+
+    if (leg.entry_price != null && price > leg.entry_price) {
+      skipped.push(`${symbol}: above entry limit`);
+      continue;
+    }
+
+    const notional = spendableCash * leg.target_weight;
+    const quantity = Math.floor(notional / price);
+
+    if (quantity < 1) {
+      skipped.push(`${symbol}: target size below 1 share`);
+      continue;
+    }
+
+    try {
+      await createOrderBookOrder({
+        db,
+        userId: user.id,
+        symbol,
+        side: leg.side,
+        quantity,
+        orderType: leg.entry_price == null ? "market" : "limit",
+        limitPrice: leg.entry_price,
+        strategyId,
+      });
+      placed++;
+    } catch (err) {
+      skipped.push(`${symbol}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  revalidatePath("/orders");
+  revalidatePath("/dashboard");
+
+  if (placed === 0) {
+    return {
+      ok: false,
+      error: `No orders placed. ${skipped.join("; ")}`,
+    };
+  }
+
+  return {
+    ok: true,
+    message:
+      skipped.length > 0
+        ? `Placed ${placed} basket order${placed === 1 ? "" : "s"}. Skipped ${skipped.length}.`
+        : `Placed ${placed} basket order${placed === 1 ? "" : "s"}.`,
+  };
 }

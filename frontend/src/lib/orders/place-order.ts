@@ -1,5 +1,3 @@
-import "server-only";
-
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOrCreatePaperAccount } from "@/lib/data/queries";
 import { isMarketOpenIST, placeKiteOrder } from "@/lib/kite/orders";

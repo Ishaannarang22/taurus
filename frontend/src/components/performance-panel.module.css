@@ -124,6 +124,15 @@
   min-height: 0;
 }
 
+.chartNote {
+  position: absolute;
+  left: 22px;
+  bottom: 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+
 .pos {
   color: var(--pos);
 }

@@ -14,12 +14,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../supabase/database.types";
 import type { MarketDataProvider } from "../domain/types";
 import type { AgentTool, AgentContext, ToolResult } from "./types";
-import {
-  executeOrder,
-  type ExecuteOrderDeps,
-} from "../engine/execute-order";
-import { placeKiteOrder } from "../kite/orders";
 import { listPositions, listStrategies } from "../data/queries";
+import { createOrderBookOrder } from "../orders/place-order";
 
 type SbClient = SupabaseClient<Database>;
 
@@ -37,7 +33,6 @@ export function buildTools(
   ctx: AgentContext,
 ): AgentTool[] {
   const { supabase, market } = deps;
-  const execDeps: ExecuteOrderDeps = { supabase, market };
 
   // ------------------------------------------------------------------ //
   // get_quote                                                            //
@@ -206,9 +201,9 @@ export function buildTools(
     declaration: {
       name: "place_order",
       description:
-        "Place a PAPER buy or sell order for an NSE stock using live Kite prices (amounts in ₹). " +
-        "No real broker order is sent unless the server is explicitly armed with KITE_LIVE_TRADING=true. " +
-        "Specify either quantity (shares) or notional (₹), not both.",
+        "Place a buy or sell order for an NSE stock into the order book. " +
+        "When KITE_LIVE_TRADING=true this sends a live Kite regular/AMO order; otherwise it creates a paper pending order. " +
+        "Specify either quantity (whole shares) or notional (₹), not both.",
       parameters: {
         type: "object",
         properties: {
@@ -223,7 +218,7 @@ export function buildTools(
           },
           quantity: {
             type: "number",
-            description: "Number of shares (fractional OK). Mutually exclusive with notional.",
+            description: "Whole number of shares. Mutually exclusive with notional.",
           },
           notional: {
             type: "number",
@@ -250,40 +245,97 @@ export function buildTools(
       const notional =
         args.notional != null ? Number(args.notional) : undefined;
 
+      if (quantity != null && notional != null) {
+        return { ok: false, error: "Specify either quantity or notional, not both." };
+      }
+
+      if (quantity == null && notional == null) {
+        return { ok: false, error: "quantity or notional is required" };
+      }
+
       try {
-        const result = await executeOrder(execDeps, {
+        let qty: number;
+        let quotePrice: number | null = null;
+        let estimatedNotional: number;
+
+        if (notional != null) {
+          if (!(notional > 0)) {
+            return { ok: false, error: "notional must be positive" };
+          }
+          const quote = await market.getQuote(symbol.toUpperCase());
+          quotePrice = quote.price;
+          qty = Math.floor(notional / quote.price);
+          estimatedNotional = qty * quote.price;
+        } else {
+          qty = Math.floor(quantity ?? 0);
+          if (qty >= 1) {
+            const quote = await market.getQuote(symbol.toUpperCase());
+            quotePrice = quote.price;
+            estimatedNotional = qty * quote.price;
+          } else {
+            estimatedNotional = 0;
+          }
+        }
+
+        if (qty < 1) {
+          return { ok: false, error: "order quantity rounds below 1 share" };
+        }
+
+        if (
+          scope.maxOrderNotional != null &&
+          estimatedNotional > scope.maxOrderNotional
+        ) {
+          return {
+            ok: false,
+            error: `order notional ${estimatedNotional.toFixed(2)} exceeds cap ${scope.maxOrderNotional}`,
+          };
+        }
+
+        let projectedCashAfter: number | null = null;
+        if (process.env.KITE_LIVE_TRADING !== "true" && side === "buy") {
+          const { data: account, error: acctErr } = await supabase
+            .from("paper_accounts")
+            .select("cash_balance")
+            .eq("id", scope.accountId)
+            .eq("user_id", scope.userId)
+            .single();
+
+          if (acctErr || !account) {
+            return {
+              ok: false,
+              error: `paper account not found: ${scope.accountId} — ${acctErr?.message ?? "no row"}`,
+            };
+          }
+
+          const cashBalance = Number(account.cash_balance);
+          if (estimatedNotional > cashBalance) {
+            return {
+              ok: false,
+              error: `insufficient cash: need ${estimatedNotional.toFixed(2)}, have ${cashBalance.toFixed(2)}`,
+            };
+          }
+          projectedCashAfter = cashBalance - estimatedNotional;
+        }
+
+        const result = await createOrderBookOrder({
+          db: supabase,
           userId: scope.userId,
-          accountId: scope.accountId,
           symbol,
           side,
-          quantity,
-          notional,
+          quantity: qty,
           createdByRunId: scope.runId ?? undefined,
-          maxNotional: scope.maxOrderNotional,
         });
-        if (result.ok) {
-          // Mirror to the real broker when live trading is armed. NSE equities
-          // are whole-share, so round the (possibly fractional) paper qty down.
-          let kite: unknown;
-          if (process.env.KITE_LIVE_TRADING === "true") {
-            const qtyInt = Math.floor(result.qty);
-            kite =
-              qtyInt >= 1
-                ? await placeKiteOrder({
-                    symbol,
-                    side,
-                    quantity: qtyInt,
-                    orderType: "MARKET",
-                    lastPrice: result.price,
-                  })
-                : {
-                    ok: false,
-                    error: `paper qty ${result.qty} rounds below 1 share; no live order placed`,
-                  };
-          }
-          return { ok: true, data: { ...result, kite } };
-        }
-        return { ok: false, error: result.error };
+
+        return {
+          ok: true,
+          data: {
+            ...result,
+            qty,
+            price: quotePrice,
+            estimatedNotional,
+            cashAfter: projectedCashAfter,
+          },
+        };
       } catch (err) {
         return {
           ok: false,

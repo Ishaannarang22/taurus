@@ -18,6 +18,7 @@ const TIMEFRAMES: Record<Timeframe, { days: number; label: string }> = {
 
 interface Props {
   series: PerformancePoint[];
+  mode?: "currency" | "percent";
 }
 
 function sliceTimeframe(
@@ -28,16 +29,43 @@ function sliceTimeframe(
   return series.slice(-days);
 }
 
-export function PerformancePanel({ series }: Props) {
+export function PerformancePanel({ series, mode = "currency" }: Props) {
   const [timeframe, setTimeframe] = useState<Timeframe>("1M");
 
   const slice = useMemo(
     () => sliceTimeframe(series, timeframe),
     [series, timeframe],
   );
+  const chartData = useMemo(() => {
+    if (mode !== "percent" || slice.length === 0) return slice;
+    const base = slice[0].value;
+    if (base === 0) return [];
+    return slice.map((point) => ({
+      t: point.t,
+      value: ((point.value / base) - 1) * 100,
+    }));
+  }, [mode, slice]);
 
   const stats = useMemo(() => {
     if (slice.length === 0) return null;
+    if (mode === "percent") {
+      const start = slice[0].value;
+      const end = slice[slice.length - 1].value;
+      const pct = start !== 0 ? ((end - start) / start) * 100 : 0;
+      const allStart = series[0]?.value ?? end;
+      const allPct = allStart !== 0 ? ((end - allStart) / allStart) * 100 : 0;
+
+      let peak = -Infinity;
+      let maxDD = 0;
+      for (const p of series) {
+        if (p.value > peak) peak = p.value;
+        const dd = peak > 0 ? (peak - p.value) / peak : 0;
+        if (dd > maxDD) maxDD = dd;
+      }
+
+      return { end: pct, pct, allPct, maxDD: maxDD * 100 };
+    }
+
     const start = slice[0].value;
     const end = slice[slice.length - 1].value;
     const change = end - start;
@@ -57,7 +85,15 @@ export function PerformancePanel({ series }: Props) {
     }
 
     return { end, pct, allPct, maxDD: maxDD * 100 };
-  }, [slice, series]);
+  }, [mode, slice, series]);
+  const hasHistory = mode === "percent" || series.length > 2;
+  const bigLabel = mode === "percent" ? `${timeframe} ETF change` : "Current value";
+  const bigValue =
+    stats && mode === "percent"
+      ? `${stats.end >= 0 ? "+" : ""}${stats.end.toFixed(2)}%`
+      : stats
+        ? formatINRCompact(stats.end)
+        : "—";
 
   return (
     <div className={styles.panel}>
@@ -69,9 +105,9 @@ export function PerformancePanel({ series }: Props) {
       <div className={styles.body}>
         <div className={styles.topRow}>
           <div className={styles.stat}>
-            <label>Current value</label>
+            <label>{bigLabel}</label>
             <span className={styles.bigValue}>
-              {stats ? formatINRCompact(stats.end) : "—"}
+              {bigValue}
             </span>
           </div>
           <div className={styles.timeframes}>
@@ -121,7 +157,12 @@ export function PerformancePanel({ series }: Props) {
         </div>
 
         <div className={styles.chartArea}>
-          <PerformanceChart data={slice} />
+          <PerformanceChart data={chartData} mode={mode} />
+          {!hasHistory && (
+            <div className={styles.chartNote}>
+              Snapshot only. Use Invest basket or the agent to create fills for history.
+            </div>
+          )}
         </div>
       </div>
     </div>

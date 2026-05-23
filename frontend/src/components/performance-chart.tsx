@@ -27,9 +27,10 @@ Chart.register(
 
 interface Props {
   data: PerformancePoint[];
+  mode?: "currency" | "percent";
 }
 
-export function PerformanceChart({ data }: Props) {
+export function PerformanceChart({ data, mode = "currency" }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<Chart | null>(null);
 
@@ -42,6 +43,11 @@ export function PerformanceChart({ data }: Props) {
 
     const up = values.length < 2 || values[values.length - 1] >= values[0];
     const color = up ? "#0a7c3e" : "#b91c1c";
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+    const flat = minValue === maxValue;
+    const padding = flat ? Math.max(maxValue * 0.02, 1) : 0;
+    const sparse = values.length <= 2;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -63,9 +69,9 @@ export function PerformanceChart({ data }: Props) {
             data: values,
             borderColor: color,
             backgroundColor: fill,
-            borderWidth: 1.5,
-            pointRadius: 0,
-            pointHoverRadius: 3,
+            borderWidth: sparse ? 2.5 : 1.5,
+            pointRadius: sparse ? 3 : 0,
+            pointHoverRadius: 4,
             pointHoverBackgroundColor: color,
             pointHoverBorderColor: "#ffffff",
             pointHoverBorderWidth: 1,
@@ -83,6 +89,8 @@ export function PerformanceChart({ data }: Props) {
           x: { display: false },
           y: {
             position: "right",
+            min: flat ? minValue - padding : undefined,
+            max: flat ? maxValue + padding : undefined,
             grid: { color: "#eeeeec" },
             border: { display: false },
             ticks: {
@@ -91,7 +99,10 @@ export function PerformanceChart({ data }: Props) {
                 family: "JetBrains Mono, monospace",
                 size: 10,
               },
-              callback: (v) => formatINRCompact(Math.round(Number(v))),
+              callback: (v) =>
+                mode === "percent"
+                  ? `${Number(v).toFixed(1)}%`
+                  : formatINRCompact(Math.round(Number(v))),
               maxTicksLimit: 5,
             },
           },
@@ -118,7 +129,10 @@ export function PerformanceChart({ data }: Props) {
             },
             callbacks: {
               title: () => "",
-              label: (ctx) => formatINR(ctx.parsed.y ?? 0),
+              label: (ctx) =>
+                mode === "percent"
+                  ? `${(ctx.parsed.y ?? 0).toFixed(2)}%`
+                  : formatINR(ctx.parsed.y ?? 0),
             },
           },
         },

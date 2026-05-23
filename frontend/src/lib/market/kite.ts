@@ -86,9 +86,12 @@ export class KiteProvider implements MarketDataProvider {
   private readonly fetchFn: typeof globalThis.fetch;
   private readonly apiKey: string;
   private readonly accessToken: string;
+  private readonly allowYahooFallback: boolean;
 
   constructor(options: KiteProviderOptions = {}) {
     this.fetchFn = options.fetch ?? globalThis.fetch;
+    this.allowYahooFallback =
+      options.apiKey == null && options.accessToken == null;
 
     // Allow injected credentials (for tests); otherwise read from env.
     const apiKey = options.apiKey ?? process.env.KITE_API_KEY;
@@ -137,7 +140,19 @@ export class KiteProvider implements MarketDataProvider {
     if (symbols.length === 0) return [];
 
     const unique = [...new Set(symbols.map((s) => s.toUpperCase()))];
-    const data = await this.throttledLtp(unique);
+    let data: Record<string, LtpEntry>;
+    try {
+      data = await this.throttledLtp(unique);
+    } catch (err) {
+      if (
+        this.allowYahooFallback &&
+        err instanceof KiteError &&
+        err.errorType === "TokenException"
+      ) {
+        return fetchYahooNseQuotes(unique, this.fetchFn);
+      }
+      throw err;
+    }
 
     const now = new Date().toISOString();
     const results: Quote[] = [];
@@ -203,4 +218,57 @@ export class KiteProvider implements MarketDataProvider {
 
     return raw.data;
   }
+}
+
+async function fetchYahooNseQuotes(
+  symbols: string[],
+  fetchFn: typeof globalThis.fetch,
+): Promise<Quote[]> {
+  const quotes = await Promise.all(
+    symbols.map(async (symbol) => {
+      const yahooSymbol = `${symbol}.NS`;
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+        yahooSymbol,
+      )}?range=1d&interval=1m`;
+
+      const res = await fetchFn(url, { cache: "no-store" });
+      if (!res.ok) {
+        throw new KiteError(
+          `Kite quote auth failed and Yahoo fallback returned HTTP ${res.status} for ${symbol}`,
+          "DataException",
+          res.status,
+        );
+      }
+
+      const json = (await res.json()) as YahooChartResponse;
+      const result = json.chart?.result?.[0];
+      const price = result?.meta?.regularMarketPrice;
+      if (typeof price !== "number" || !(price > 0) || !result) {
+        throw new KiteError(
+          `Kite quote auth failed and Yahoo fallback returned no price for ${symbol}`,
+          "DataException",
+        );
+      }
+
+      const asOf =
+        typeof result.meta.regularMarketTime === "number"
+          ? new Date(result.meta.regularMarketTime * 1000).toISOString()
+          : new Date().toISOString();
+
+      return { symbol, price, asOf };
+    }),
+  );
+
+  return quotes;
+}
+
+interface YahooChartResponse {
+  chart?: {
+    result?: Array<{
+      meta: {
+        regularMarketPrice?: number;
+        regularMarketTime?: number;
+      };
+    }>;
+  };
 }

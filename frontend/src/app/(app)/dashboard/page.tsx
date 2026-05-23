@@ -5,10 +5,12 @@ import {
   listStrategies,
   getStrategyDetail,
   getPerformanceSeries,
+  getStrategyPerformanceSeries,
 } from "@/lib/data/queries";
 import { PositionsTable } from "@/components/positions-table";
 import { PerformancePanel } from "@/components/performance-panel";
 import { StrategyChat } from "@/components/strategy-chat";
+import { InvestStrategyButton } from "@/components/invest-strategy-button";
 import { ArrowIcon } from "@/components/icons";
 import { formatINR, formatINRCompact } from "@/lib/format";
 import { getMarketDataSourceLabel } from "@/lib/market/source";
@@ -36,9 +38,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const activeId = strategyId ?? strategies[0]?.id ?? null;
   const activeDetail = activeId ? await getStrategyDetail(db, activeId) : null;
 
-  // Positions belong to the strategy detail; the equity curve is per account.
+  // Positions belong to the strategy detail. The performance curve is the
+  // selected basket's weighted historical performance, falling back to account
+  // trade replay if basket history cannot be built.
   const positions = activeDetail?.positions ?? [];
-  const series = await getPerformanceSeries(db, account.id);
 
   const accountSnapshot = {
     cash: account.cashBalance,
@@ -51,6 +54,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       : `Paper · ${getMarketDataSourceLabel()}`,
     syncedAt: kiteHoldings?.syncedAt ?? null,
   };
+  const strategySeries = activeDetail
+    ? await getStrategyPerformanceSeries(db, activeDetail.id)
+    : [];
+  const seriesMode = strategySeries.length > 0 ? "percent" : "currency";
+  const series =
+    strategySeries.length > 0
+      ? strategySeries
+      : await getPerformanceSeries(db, account.id);
 
   // No strategies yet — show an empty-state prompt.
   if (strategies.length === 0 || !activeDetail) {
@@ -92,6 +103,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               <strong>{activeDetail.createdAt.slice(0, 10)}</strong>
             </div>
           </div>
+          <InvestStrategyButton strategyId={activeDetail.id} />
         </div>
 
         <StrategyChat strategy={activeDetail} />
@@ -101,10 +113,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           <Link href="/strategies/new" className={styles.composerInput}>
             Describe a strategy — e.g. invest ₹4,00,000 in IT majors
           </Link>
-          <Link href="/strategies/new" className={styles.buildBtn}>
-            BUILD
-            <ArrowIcon />
-          </Link>
+          <div className={styles.composerActions}>
+            <Link href="/strategies/new" className={styles.buildBtn}>
+              BUILD
+              <ArrowIcon />
+            </Link>
+            <InvestStrategyButton strategyId={activeDetail.id} />
+          </div>
         </div>
 
         {/* Suggestion chips */}
@@ -130,7 +145,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       {/* ===== BOTTOM: positions + performance ===== */}
       <div className={styles.lower}>
         <PositionsTable positions={positions} />
-        <PerformancePanel series={series} />
+        <PerformancePanel series={series} mode={seriesMode} />
       </div>
     </div>
   );
