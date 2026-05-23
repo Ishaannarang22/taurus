@@ -1,0 +1,196 @@
+.page {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ===== TOP: chat section ===== */
+
+.chatSection {
+  display: grid;
+  grid-template-rows: 56px 1fr auto auto;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.chatHead {
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.chatTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.chatTitle h2 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.chatTitle span {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chatMeta {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+  flex-shrink: 0;
+}
+
+.metaCell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.metaCell strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ===== composer row ===== */
+
+.composerRow {
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.composerInput {
+  padding: 16px 24px;
+  font-size: 14px;
+  color: var(--ink-faint);
+  text-decoration: none;
+  display: block;
+}
+
+.composerInput:hover {
+  color: var(--ink-mute);
+}
+
+.buildBtn {
+  padding: 0 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-left: 1px solid var(--line);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  text-decoration: none;
+  transition: background 0.08s ease;
+}
+
+.buildBtn:hover {
+  background: var(--surface-sunk);
+}
+
+.buildBtn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ===== chips ===== */
+
+.chips {
+  padding: 8px 24px 14px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.chip {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--ink-soft);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  transition: background 0.08s ease, color 0.08s ease, border-color 0.08s ease;
+}
+
+.chip:hover {
+  background: var(--ink);
+  color: var(--surface);
+  border-color: var(--ink);
+}
+
+/* ===== BOTTOM: positions + performance ===== */
+
+.lower {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  overflow: hidden;
+}
+
+/* ===== empty state ===== */
+
+.emptyState {
+  display: grid;
+  place-items: center;
+  height: 100%;
+}
+
+.emptyInner {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.emptyHint {
+  color: var(--ink-mute);
+  font-size: 14px;
+}
+
+.emptyAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  text-decoration: none;
+  transition: background 0.08s ease;
+}
+
+.emptyAction:hover {
+  background: var(--surface-sunk);
+}
+
+.emptyAction svg {
+  width: 14px;
+  height: 14px;
+}

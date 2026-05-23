@@ -1,0 +1,133 @@
+.panel {
+  background: var(--surface);
+  display: grid;
+  grid-template-rows: 48px 1fr;
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.head h3 {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+.body {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  overflow: hidden;
+}
+
+.topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 22px 4px;
+  gap: 18px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  font-weight: 500;
+}
+
+.bigValue {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-top: 4px;
+  color: var(--ink);
+}
+
+.smallValue {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.timeframes {
+  display: flex;
+  border: 1px solid var(--line-strong);
+}
+
+.tfOff,
+.tfOn {
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  border-right: 1px solid var(--line-strong);
+  transition: background 0.08s ease, color 0.08s ease;
+  cursor: pointer;
+}
+
+.tfOff:last-child,
+.tfOn:last-child {
+  border-right: none;
+}
+
+.tfOff {
+  color: var(--ink-mute);
+  background: var(--surface);
+}
+
+.tfOn {
+  background: var(--ink);
+  color: var(--surface);
+}
+
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 8px 22px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.statsRow .stat {
+  border-left: 1px solid var(--line);
+  padding-left: 14px;
+}
+
+.statsRow .stat:first-child {
+  border-left: none;
+  padding-left: 0;
+}
+
+.chartArea {
+  position: relative;
+  padding: 14px 22px 18px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.pos {
+  color: var(--pos);
+}
+
+.neg {
+  color: var(--neg);
+}

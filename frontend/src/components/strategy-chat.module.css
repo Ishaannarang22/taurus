@@ -1,0 +1,40 @@
+.chatLog {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  padding: 22px 24px;
+  flex: 1;
+}
+
+.msg {
+  max-width: 720px;
+  display: flex;
+  gap: 12px;
+}
+
+.role {
+  flex: 0 0 56px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  font-weight: 600;
+  padding-top: 2px;
+}
+
+.taurus .role {
+  color: var(--ink);
+}
+
+.body {
+  border-left: 1px solid var(--line);
+  padding-left: 14px;
+  font-size: 13px;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.taurus .body {
+  border-left-color: var(--ink);
+}
