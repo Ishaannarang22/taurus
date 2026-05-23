@@ -66,7 +66,10 @@ function makeMockSupabase(opts: {
     const chain: Record<string, unknown> = {};
 
     const resolve = (): { data: unknown; error: unknown } => {
-      if (table === "instruments" && op === "upsert") {
+      if (table === "instruments" && op === "select") {
+        return { data: null, error: null };
+      }
+      if (table === "instruments" && op === "insert") {
         return { data: { id: "instr-123" }, error: null };
       }
       if (table === "paper_accounts" && op === "select") {

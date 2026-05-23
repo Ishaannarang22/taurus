@@ -52,7 +52,7 @@ function makeMockSupabase(opts: {
   cashBalance?: number;
   positionQty?: number;
   positionAvg?: number;
-  /** Operation to fail: "instruments-upsert" | "order-insert" | "trade-insert" | "position-upsert" | "cash-update" */
+  /** Operation to fail: "instruments-select" | "instruments-insert" | "order-insert" | "trade-insert" | "position-upsert" | "cash-update" */
   failOn?: string;
 }): SupabaseClient<Database> {
   const {
@@ -78,7 +78,10 @@ function makeMockSupabase(opts: {
         return { data: null, error: { message: `mock failure: ${opKey}` } };
       }
 
-      if (table === "instruments" && op === "upsert") {
+      if (table === "instruments" && op === "select") {
+        return { data: null, error: null };
+      }
+      if (table === "instruments" && op === "insert") {
         return { data: { id: "instr-123" }, error: null };
       }
       if (table === "paper_accounts" && op === "select") {
@@ -134,6 +137,7 @@ function makeMockSupabase(opts: {
     chain.gt = noop;
     chain.order = noop;
     chain.limit = noop;
+    chain.in = noop;
     chain.single = single;
     chain.maybeSingle = maybeSingle;
     chain.then = (resolve_: (v: unknown) => unknown) => {

@@ -80,23 +80,39 @@ export async function executeOrder(
   });
 
   // ------------------------------------------------------------------ //
-  // 1. Upsert instrument by symbol (asset_type "stock")                 //
+  // 1. Resolve/create instrument by symbol (asset_type "stock")          //
   // ------------------------------------------------------------------ //
 
-  const { data: instrument, error: instrErr } = await supabase
-    .from("instruments")
-    .upsert(
-      { symbol: symbol.toUpperCase(), asset_type: "stock" as const },
-      { onConflict: "symbol", ignoreDuplicates: false },
-    )
-    .select("id")
-    .single();
+  const upperSymbol = symbol.toUpperCase();
 
-  if (instrErr || !instrument) {
-    return failure(`instrument upsert failed: ${instrErr?.message ?? "no row"}`);
+  const { data: existingInstrument, error: lookupInstrErr } = await supabase
+    .from("instruments")
+    .select("id")
+    .eq("symbol", upperSymbol)
+    .limit(1)
+    .maybeSingle();
+
+  if (lookupInstrErr) {
+    return failure(`instrument lookup failed: ${lookupInstrErr.message}`);
   }
 
-  const instrumentId = instrument.id;
+  let instrumentId = existingInstrument?.id;
+
+  if (!instrumentId) {
+    const { data: createdInstrument, error: createInstrErr } = await supabase
+      .from("instruments")
+      .insert({ symbol: upperSymbol, asset_type: "stock" as const })
+      .select("id")
+      .single();
+
+    if (createInstrErr || !createdInstrument) {
+      return failure(
+        `instrument insert failed: ${createInstrErr?.message ?? "no row"}`,
+      );
+    }
+
+    instrumentId = createdInstrument.id;
+  }
 
   // ------------------------------------------------------------------ //
   // 2. Fetch live quote                                                  //
@@ -104,7 +120,7 @@ export async function executeOrder(
 
   let price: number;
   try {
-    const quote = await market.getQuote(symbol.toUpperCase());
+    const quote = await market.getQuote(upperSymbol);
     price = quote.price;
   } catch (err) {
     return failure(

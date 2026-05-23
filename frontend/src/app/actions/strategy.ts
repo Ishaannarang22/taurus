@@ -52,7 +52,7 @@ export async function generateStrategyAction(
  * Persist a confirmed basket strategy.
  *
  * Steps:
- * 1. Upsert instruments (symbol + asset_type) for each leg.
+ * 1. Resolve/create instruments (symbol + asset_type) for each leg.
  * 2. Insert an agent_runs row (kind = "generate").
  * 3. Resolve (or create) the user's paper account to bind the strategy to.
  * 4. Insert an *active* strategies row, bound to that paper account, linked to
@@ -82,28 +82,47 @@ export async function saveStrategyAction(
 
   const userId = user.id;
 
-  // 1. Upsert instruments — one row per unique symbol.
-  const symbols = spec.legs.map((leg) => leg.symbol);
+  // 1. Resolve instruments — one row per unique symbol.
+  // The live DB does not currently have a unique constraint on instruments.symbol,
+  // so this must not use `upsert(..., { onConflict: "symbol" })`.
+  const symbols = spec.legs.map((leg) => leg.symbol.toUpperCase().trim());
   const uniqueSymbols = [...new Set(symbols)];
 
-  const instrumentInserts = uniqueSymbols.map((symbol) => ({
-    symbol,
-    asset_type: "stock" as const,
-    currency: "USD",
-  }));
-
-  const { data: instrumentRows, error: instrError } = await supabase
+  const { data: existingInstruments, error: existingInstrError } = await supabase
     .from("instruments")
-    .upsert(instrumentInserts, { onConflict: "symbol" })
-    .select("id, symbol");
+    .select("id, symbol")
+    .in("symbol", uniqueSymbols);
 
-  if (instrError) {
-    throw new Error(`Failed to upsert instruments: ${instrError.message}`);
+  if (existingInstrError) {
+    throw new Error(`Failed to load instruments: ${existingInstrError.message}`);
   }
 
   const symbolToId = new Map<string, string>(
-    (instrumentRows ?? []).map((row) => [row.symbol, row.id]),
+    (existingInstruments ?? []).map((row) => [row.symbol, row.id]),
   );
+
+  const missingSymbols = uniqueSymbols.filter((symbol) => !symbolToId.has(symbol));
+
+  if (missingSymbols.length > 0) {
+    const instrumentInserts = missingSymbols.map((symbol) => ({
+      symbol,
+      asset_type: "stock" as const,
+      currency: "USD",
+    }));
+
+    const { data: createdInstruments, error: createInstrError } = await supabase
+      .from("instruments")
+      .insert(instrumentInserts)
+      .select("id, symbol");
+
+    if (createInstrError) {
+      throw new Error(`Failed to insert instruments: ${createInstrError.message}`);
+    }
+
+    for (const row of createdInstruments ?? []) {
+      symbolToId.set(row.symbol, row.id);
+    }
+  }
 
   // 2. Insert an agent_runs row for this generation event.
   const { data: runRow, error: runError } = await supabase
@@ -204,7 +223,7 @@ export async function saveStrategyAction(
 
   // 5. Insert strategy_legs rows.
   const legInserts = spec.legs.map((leg) => {
-    const instrumentId = symbolToId.get(leg.symbol);
+    const instrumentId = symbolToId.get(leg.symbol.toUpperCase().trim());
     if (!instrumentId) {
       throw new Error(`Instrument id not found for symbol: ${leg.symbol}`);
     }
