@@ -114,12 +114,24 @@ export async function getOrCreatePaperAccount(
         ? profile.investable_capital
         : 100_000;
 
-    // user_id is automatically set by the RLS insert policy (auth.uid()).
-    // We cast to `unknown` first to satisfy the strict Insert type that
-    // requires user_id even though it is always injected server-side.
+    const {
+      data: { user },
+      error: userErr,
+    } = await db.auth.getUser();
+
+    if (userErr || !user) {
+      throw new Error(
+        `paper_accounts insert: ${userErr?.message ?? "no authenticated user"}`,
+      );
+    }
+
     const { data: created, error: insertErr } = await db
       .from("paper_accounts")
-      .insert({ starting_cash: seed, cash_balance: seed } as unknown as Database["public"]["Tables"]["paper_accounts"]["Insert"])
+      .insert({
+        user_id: user.id,
+        starting_cash: seed,
+        cash_balance: seed,
+      })
       .select("id, name, starting_cash, cash_balance")
       .single();
 

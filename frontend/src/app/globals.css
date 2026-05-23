@@ -15,8 +15,8 @@
   --row: 44px;
   --radius: 0;
   --shadow: none;
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans-fallback: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono-fallback: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 * {
@@ -31,7 +31,7 @@ body {
   width: 100%;
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-sans);
+  font-family: var(--font-sans), var(--font-sans-fallback);
   font-size: 14px;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;

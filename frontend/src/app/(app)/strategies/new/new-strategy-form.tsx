@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { generateStrategyAction, saveStrategyAction } from "@/app/actions/strategy";
 import type { StrategySpec, BasketLeg } from "@/lib/domain/types";
@@ -51,11 +51,6 @@ export function NewStrategyForm({ initialPrompt }: Props) {
   const [spec, setSpec] = useState<StrategySpec | null>(null);
   const [explanation, setExplanation] = useState<string>("");
   const [legDrafts, setLegDrafts] = useState<LegDraft[]>([]);
-
-  // Pre-fill prompt from prop when component mounts (e.g. chip click).
-  useEffect(() => {
-    if (initialPrompt) setPrompt(initialPrompt);
-  }, [initialPrompt]);
 
   // ===== STEP 1: Generate =====
 
