@@ -12,6 +12,7 @@ import {
   Filler,
 } from "chart.js";
 import type { PerformancePoint } from "@/lib/data/types";
+import { formatINRCompact, formatINR } from "@/lib/format";
 import styles from "./performance-chart.module.css";
 
 Chart.register(
@@ -90,7 +91,7 @@ export function PerformanceChart({ data }: Props) {
                 family: "JetBrains Mono, monospace",
                 size: 10,
               },
-              callback: (v) => "$" + Math.round(Number(v)).toLocaleString(),
+              callback: (v) => formatINRCompact(Math.round(Number(v))),
               maxTicksLimit: 5,
             },
           },
@@ -117,7 +118,7 @@ export function PerformanceChart({ data }: Props) {
             },
             callbacks: {
               title: () => "",
-              label: (ctx) => "$" + (ctx.parsed.y ?? 0).toFixed(2),
+              label: (ctx) => formatINR(ctx.parsed.y ?? 0),
             },
           },
         },

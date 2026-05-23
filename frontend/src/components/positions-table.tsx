@@ -1,4 +1,5 @@
 import type { PositionView } from "@/lib/data/types";
+import { formatINRCompact } from "@/lib/format";
 import styles from "./positions-table.module.css";
 
 interface Props {
@@ -50,7 +51,7 @@ export function PositionsTable({ positions }: Props) {
                         : "—"}
                     </td>
                     <td className={`${styles.num} ${styles.right} ${styles.wide}`}>
-                      ${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      {formatINRCompact(value)}
                     </td>
                     <td
                       className={`${styles.num} ${styles.right} ${

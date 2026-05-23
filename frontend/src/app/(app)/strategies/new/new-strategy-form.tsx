@@ -189,7 +189,7 @@ export function NewStrategyForm({ initialPrompt }: Props) {
             type="text"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Describe a strategy — e.g. $4,500 long AI infrastructure across 5 names"
+            placeholder="Describe a strategy — e.g. ₹4,50,000 long IT infrastructure across 5 names"
             autoFocus
           />
           <button

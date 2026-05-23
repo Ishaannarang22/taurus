@@ -10,6 +10,7 @@ import { PositionsTable } from "@/components/positions-table";
 import { PerformancePanel } from "@/components/performance-panel";
 import { StrategyChat } from "@/components/strategy-chat";
 import { ArrowIcon } from "@/components/icons";
+import { formatINRCompact } from "@/lib/format";
 import styles from "./page.module.css";
 
 interface PageProps {
@@ -65,7 +66,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           <div className={styles.chatMeta}>
             <div className={styles.metaCell}>
               <span>Allocated</span>
-              <strong>${activeDetail.invested.toLocaleString()}</strong>
+              <strong>{formatINRCompact(activeDetail.invested)}</strong>
             </div>
             <div className={styles.metaCell}>
               <span>Opened</span>
@@ -79,7 +80,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {/* Composer — navigates to new strategy page */}
         <div className={styles.composerRow}>
           <Link href="/strategies/new" className={styles.composerInput}>
-            Describe a strategy — e.g. invest $4,000 in AI companies
+            Describe a strategy — e.g. invest ₹4,00,000 in IT majors
           </Link>
           <Link href="/strategies/new" className={styles.buildBtn}>
             BUILD
@@ -90,11 +91,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {/* Suggestion chips */}
         <div className={styles.chips}>
           {[
-            "Invest $4,000 in AI companies",
-            "Build a defense ETF basket",
-            "$3,500 in dividend payers",
-            "Long biotech with $2,000",
-            "Energy transition tilt",
+            "Invest ₹4,00,000 in IT majors",
+            "Build a PSU bank basket",
+            "₹3,50,000 in dividend payers",
+            "Long pharma with ₹2,00,000",
+            "Energy transition — renewables tilt",
           ].map((chip) => (
             <Link
               key={chip}

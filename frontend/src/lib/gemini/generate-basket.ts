@@ -45,22 +45,22 @@ Rules:
      "name": string (concise basket name, max 120 chars),
      "description": string (1-3 sentences explaining the thesis, max 2000 chars),
      "legs": array of {
-       "symbol": string (uppercase ticker, max 8 chars),
+       "symbol": string (uppercase NSE trading symbol, max 8 chars),
        "weight": number (positive, fraction of account capital, 0 < weight <= 1),
-       "entryPrice": number | null (specific limit price threshold or null for market),
+       "entryPrice": number | null (specific limit price threshold in ₹ or null for market),
        "side": "buy" | "sell"
      },
      "rebalance": "none" | "on_drift" | "periodic",
      "cashReservePct": number (fraction to keep as cash, 0..1)
    }
 3. All leg weights must sum to <= (1 - cashReservePct). Keep weights balanced unless the thesis strongly implies concentration.
-4. entryPrice should be null unless the thesis mentions specific price levels or entry points. NEVER invent current market prices. entryPrice is a limit threshold (fill only if the stock reaches this price), not a current quote.
-5. Use well-known, liquid tickers on US exchanges. Prefer common tickers (e.g. AAPL, NVDA, MSFT) over obscure ones.
+4. entryPrice should be null unless the thesis mentions specific price levels or entry points. NEVER invent current market prices. entryPrice is a limit threshold in ₹ (fill only if the stock reaches this price), not a current quote.
+5. Use well-known, liquid NSE-listed Indian equities. Prefer large-cap Nifty 50 / Nifty 100 names (e.g. RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK, WIPRO, SBIN, AXISBANK, KOTAKBANK, LT, BHARTIARTL, HINDUNILVR, ITC, BAJFINANCE, MARUTI, TATAMOTORS, ONGC, POWERGRID, NTPC, COALINDIA). Use bare NSE trading symbols — no exchange prefix, no ".NS" suffix.
 6. side is almost always "buy" for a long basket. Use "sell" only if the thesis is explicitly a short.
 7. Choose a rebalance rule based on the thesis: "none" for a buy-and-hold basket, "on_drift" if the user wants weights maintained, "periodic" if they mention a time schedule.
 8. cashReservePct should be 0 unless the user explicitly mentions keeping cash back (e.g. "hold 10% in cash").
-9. Do not invent speculative tickers, foreign-only companies with ADR complexity, or illiquid names.
-10. The basket should reflect the specific thesis — sector allocation, geographic focus, growth vs. value, market cap, etc.`;
+9. Do not invent speculative tickers, foreign companies, ADRs, or illiquid names. All symbols must be tradeable on NSE.
+10. The basket should reflect the specific thesis — sector allocation, geographic focus, growth vs. value, market cap, thematic, etc. Any monetary amounts in the description should use ₹.`;
 
 /** JSON Schema describing the StrategySpec output shape. */
 const RESPONSE_JSON_SCHEMA = {

@@ -156,7 +156,7 @@ export function AgentConsole() {
           value={instruction}
           onChange={(e) => setInstruction(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="e.g. Invest 30% of my cash split equally across NVDA, MSFT, and GOOGL"
+          placeholder="e.g. Invest 30% of my cash split equally across RELIANCE, TCS, and INFY"
           rows={4}
           disabled={isPending}
           aria-label="Trading instruction"
@@ -234,8 +234,8 @@ export function AgentConsole() {
 // ---------------------------------------------------------------------------
 
 const EXAMPLE_INSTRUCTIONS = [
-  "Invest 30% of my cash in NVDA, MSFT, GOOGL equally",
+  "Invest 30% of my cash in RELIANCE, TCS, INFY equally",
   "Review positions and sell anything down more than 15%",
   "Get my current cash and open positions",
-  "Buy $5,000 of SPY",
+  "Buy ₹5,00,000 of NIFTYBEES",
 ];

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { StrategySummaryView } from "@/lib/data/types";
+import { formatINRCompact } from "@/lib/format";
 import styles from "./sidebar-strategy-link.module.css";
 
 interface Props {
@@ -36,7 +37,7 @@ export function SidebarStrategyLink({ strategy }: Props) {
       </div>
       <div className={styles.row2}>
         <span>
-          ${strategy.invested.toLocaleString()} &middot;{" "}
+          {formatINRCompact(strategy.invested)} &middot;{" "}
           {strategy.positionCount} pos.
         </span>
         <span>{strategy.createdAt.slice(0, 10)}</span>

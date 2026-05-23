@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { PerformancePoint } from "@/lib/data/types";
+import { formatINRCompact } from "@/lib/format";
 import { PerformanceChart } from "./performance-chart";
 import styles from "./performance-panel.module.css";
 
@@ -70,12 +71,7 @@ export function PerformancePanel({ series }: Props) {
           <div className={styles.stat}>
             <label>Current value</label>
             <span className={styles.bigValue}>
-              {stats
-                ? "$" +
-                  stats.end.toLocaleString(undefined, {
-                    maximumFractionDigits: 0,
-                  })
-                : "—"}
+              {stats ? formatINRCompact(stats.end) : "—"}
             </span>
           </div>
           <div className={styles.timeframes}>

@@ -4,6 +4,7 @@ import { BullIcon, PlusIcon } from "@/components/icons";
 import { SidebarStrategyLink } from "@/components/sidebar-strategy-link";
 import { getOrCreatePaperAccount, listStrategies } from "@/lib/data/queries";
 import { createClient } from "@/lib/supabase/server";
+import { formatINR, formatINRCompact } from "@/lib/format";
 import styles from "./layout.module.css";
 
 // Server component: fetches account + strategies for the sidebar on every
@@ -33,17 +34,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <div className={styles.cash}>
           <div className={styles.cashLabel}>Cash available</div>
           <div className={styles.cashValue}>
-            $
-            {account.cashBalance.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
+            {formatINR(account.cashBalance)}
           </div>
           <div className={styles.cashSub}>
-            Invested ${account.investedValue.toLocaleString()} &middot; Total $
-            {account.totalValue.toLocaleString(undefined, {
-              maximumFractionDigits: 0,
-            })}
+            Invested {formatINRCompact(account.investedValue)} &middot; Total{" "}
+            {formatINRCompact(account.totalValue)}
           </div>
         </div>
 
@@ -73,7 +68,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
         <div className={styles.sidebarFoot}>
           <span className={styles.liveDot} />
-          <span>MARKET OPEN &middot; NYSE</span>
+          <span>MARKET OPEN &middot; NSE</span>
         </div>
       </aside>
 

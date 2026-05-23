@@ -109,7 +109,8 @@ export async function saveStrategyAction(
     const instrumentInserts = missingSymbols.map((symbol) => ({
       symbol,
       asset_type: "stock" as const,
-      currency: "USD",
+      currency: "INR",
+      exchange: "NSE",
     }));
 
     const { data: createdInstruments, error: createInstrError } = await serviceSupabase
