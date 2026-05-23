@@ -91,7 +91,9 @@ export class KiteProvider implements MarketDataProvider {
   constructor(options: KiteProviderOptions = {}) {
     this.fetchFn = options.fetch ?? globalThis.fetch;
     this.allowYahooFallback =
-      options.apiKey == null && options.accessToken == null;
+      process.env.KITE_ALLOW_YAHOO_FALLBACK === "true" &&
+      options.apiKey == null &&
+      options.accessToken == null;
 
     // Allow injected credentials (for tests); otherwise read from env.
     const apiKey = options.apiKey ?? process.env.KITE_API_KEY;

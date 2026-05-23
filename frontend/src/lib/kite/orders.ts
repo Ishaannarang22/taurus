@@ -199,7 +199,10 @@ export async function placeKiteOrder(params: PlaceOrderParams): Promise<KiteOrde
   if (!response.ok) {
     const message =
       isKiteErrorShape(json) ? json.message : `HTTP ${response.status}`;
-    return { ok: false, error: `Kite API error: ${message}` };
+    return {
+      ok: false,
+      error: `Kite API error: ${message} (${credentialFingerprint(apiKey, accessToken)})`,
+    };
   }
 
   const orderId =
@@ -231,6 +234,15 @@ function isKiteErrorShape(v: unknown): v is { message: string } {
     "message" in v &&
     typeof (v as Record<string, unknown>).message === "string"
   );
+}
+
+function credentialFingerprint(apiKey: string, accessToken: string): string {
+  return `api_key=${maskSecret(apiKey)}, access_token=${maskSecret(accessToken)}`;
+}
+
+function maskSecret(value: string): string {
+  if (value.length <= 8) return "*".repeat(value.length);
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
 function isKiteSuccessShape(v: unknown): v is { data: { order_id: string | number } } {
