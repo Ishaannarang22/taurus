@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { StrategySummaryView } from "@/lib/data/types";
 import { formatINRCompact } from "@/lib/format";
 import styles from "./sidebar-strategy-link.module.css";
@@ -12,13 +12,12 @@ interface Props {
 
 export function SidebarStrategyLink({ strategy }: Props) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   // Active when the URL's strategyId search param matches this strategy,
-  // or when this is the first strategy and we're on /dashboard with no param.
+  // using Next's request-aware search params so SSR and hydration agree.
   const isActive =
     pathname.includes(`/dashboard`) &&
-    (typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("s") === strategy.id
-      : false);
+    searchParams.get("s") === strategy.id;
 
   const pl = strategy.returnPct ?? 0;
   const plStr = (pl >= 0 ? "+" : "") + pl.toFixed(2) + "%";

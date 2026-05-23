@@ -9,6 +9,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { KiteProvider, KiteError } from "./kite";
+import { setKiteThrottleIntervalsForTests } from "../kite/rate-limit";
+
+// Disable rate-limit spacing in tests (no real timing dependence).
+setKiteThrottleIntervalsForTests({ quote: 0 });
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -9,6 +9,10 @@ import { describe, it, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
 import { isMarketOpenIST, placeKiteOrder } from "./orders";
+import { setKiteThrottleIntervalsForTests } from "./rate-limit";
+
+// Disable rate-limit spacing in tests (no real timing dependence).
+setKiteThrottleIntervalsForTests({ order: 0 });
 
 // ---------------------------------------------------------------------------
 // Helpers

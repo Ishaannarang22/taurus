@@ -20,6 +20,7 @@
  */
 
 import type { MarketDataProvider, Quote } from "@/lib/domain/types";
+import { kiteThrottle } from "@/lib/kite/rate-limit";
 
 // ---------------------------------------------------------------------------
 // Typed error
@@ -85,13 +86,6 @@ export class KiteProvider implements MarketDataProvider {
   private readonly fetchFn: typeof globalThis.fetch;
   private readonly apiKey: string;
   private readonly accessToken: string;
-
-  /**
-   * Throttle state: a promise that resolves no earlier than 1 s after the
-   * last request was dispatched. All callers chain onto it so requests are
-   * serialised with at least a 1 s gap.
-   */
-  private lastRequest: Promise<void> = Promise.resolve();
 
   constructor(options: KiteProviderOptions = {}) {
     this.fetchFn = options.fetch ?? globalThis.fetch;
@@ -163,23 +157,13 @@ export class KiteProvider implements MarketDataProvider {
   // -------------------------------------------------------------------------
 
   /**
-   * Dispatches a /quote/ltp request after waiting for the throttle window.
-   * Ensures ≤1 request/second by chaining onto the previous request promise.
+   * Dispatches a /quote/ltp request through the shared process-wide Kite rate
+   * limiter (category "quote", ≤1 req/s enforced across all provider instances).
    */
   private throttledLtp(
     symbols: string[]
   ): Promise<Record<string, LtpEntry>> {
-    // Chain: wait for previous request + 1 s gap, then run this one.
-    const result = this.lastRequest.then(() => this.fetchLtp(symbols));
-
-    // The new "last request" resolves 1 s after the current one finishes
-    // (whether it succeeded or failed) so the next caller waits a full second.
-    this.lastRequest = result.then(
-      () => new Promise<void>((res) => setTimeout(res, 1000)),
-      () => new Promise<void>((res) => setTimeout(res, 1000))
-    );
-
-    return result;
+    return kiteThrottle("quote", () => this.fetchLtp(symbols));
   }
 
   /** Performs the actual HTTP call to GET /quote/ltp. */

@@ -9,7 +9,12 @@
  *   1. KITE_LIVE_TRADING kill switch (avoid firing real orders by accident).
  *   2. Quantity must be an integer ≥ 1 (NSE equities can't be fractional).
  *   3. AMO vs regular variety chosen by isMarketOpenIST().
+ *
+ * The actual POST routes through the shared Kite rate limiter (category
+ * "order", ≤10/s and under the 400/min ceiling).
  */
+
+import { kiteThrottle } from "./rate-limit";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -169,15 +174,17 @@ export async function placeKiteOrder(params: PlaceOrderParams): Promise<KiteOrde
   // ------------------------------------------------------------------
   let response: Response;
   try {
-    response = await fetch(`${KITE_API_ROOT}/orders/${variety}`, {
-      method: "POST",
-      headers: {
-        Authorization: `token ${apiKey}:${accessToken}`,
-        "X-Kite-Version": "3",
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: body.toString(),
-    });
+    response = await kiteThrottle("order", () =>
+      fetch(`${KITE_API_ROOT}/orders/${variety}`, {
+        method: "POST",
+        headers: {
+          Authorization: `token ${apiKey}:${accessToken}`,
+          "X-Kite-Version": "3",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: body.toString(),
+      }),
+    );
   } catch (networkErr) {
     return { ok: false, error: `Network error: ${String(networkErr)}` };
   }
