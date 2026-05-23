@@ -7,9 +7,9 @@
  * It never sees live prices and never decides trades.
  */
 
-import { GoogleGenAI } from "@google/genai";
 import type { StrategySpec } from "@/lib/domain/types";
 import { parseStrategySpec } from "@/lib/domain/strategy-spec";
+import { throttledGenAIClient } from "@/lib/gemini/client";
 
 export interface GenerateBasketOpts {
   /** Target number of legs (1..25). Default: model decides within the range. */
@@ -99,17 +99,9 @@ export async function generateBasket(
 ): Promise<StrategySpec> {
   const { targetLegs, hints, temperature = 0.4, _client } = opts;
 
-  // Resolve the AI client — use injected client for tests, otherwise create real one.
-  let client: GenAIClient;
-  if (_client) {
-    client = _client;
-  } else {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is not configured");
-    }
-    client = new GoogleGenAI({ apiKey }) as unknown as GenAIClient;
-  }
+  // Use injected client for tests; otherwise the shared throttled client so all
+  // Gemini calls share one rate-limited budget (GEMINI_API_KEY checked there).
+  const client: GenAIClient = _client ?? throttledGenAIClient;
 
   let userContent = prompt.trim();
   if (targetLegs !== undefined) {
