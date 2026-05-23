@@ -65,7 +65,7 @@ async function runCron(request: NextRequest): Promise<NextResponse<CronResponse>
   // Service client bypasses RLS — scope by status only (user_id returned in row).
   const { data: strategies, error: loadError } = await supabase
     .from("strategies")
-    .select("id, user_id")
+    .select("id, user_id, parameters")
     .eq("status", "active");
 
   if (loadError) {
@@ -91,22 +91,42 @@ async function runCron(request: NextRequest): Promise<NextResponse<CronResponse>
     strategies.map(async (strategy) => {
       const { id: strategyId, user_id: userId } = strategy;
 
-      // Resolve the user's paper account (take the first/oldest one).
-      // Explicit user_id filter is required because the service client bypasses RLS.
-      const { data: accounts, error: accountError } = await supabase
-        .from("paper_accounts")
-        .select("id")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: true })
-        .limit(1);
+      // Prefer the paper account the strategy was bound to at save time
+      // (parameters.paper_account_id); fall back to the user's first/oldest
+      // account. Explicit user_id filter is required because the service
+      // client bypasses RLS.
+      const params = (strategy.parameters ?? {}) as Record<string, unknown>;
+      const boundAccountId =
+        typeof params.paper_account_id === "string"
+          ? params.paper_account_id
+          : null;
 
-      if (accountError || !accounts || accounts.length === 0) {
-        const reason = accountError?.message ?? "no paper account found";
-        errors.push(`strategy=${strategyId} user=${userId}: ${reason}`);
-        return;
+      let accountId: string | null = null;
+      if (boundAccountId) {
+        const { data: bound } = await supabase
+          .from("paper_accounts")
+          .select("id")
+          .eq("id", boundAccountId)
+          .eq("user_id", userId)
+          .maybeSingle();
+        accountId = bound?.id ?? null;
       }
 
-      const accountId = accounts[0].id;
+      if (!accountId) {
+        const { data: accounts, error: accountError } = await supabase
+          .from("paper_accounts")
+          .select("id")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: true })
+          .limit(1);
+
+        if (accountError || !accounts || accounts.length === 0) {
+          const reason = accountError?.message ?? "no paper account found";
+          errors.push(`strategy=${strategyId} user=${userId}: ${reason}`);
+          return;
+        }
+        accountId = accounts[0].id;
+      }
 
       try {
         const result = await engine.runStrategy({ strategyId, userId, accountId });

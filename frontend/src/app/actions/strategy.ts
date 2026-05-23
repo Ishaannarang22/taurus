@@ -54,8 +54,11 @@ export async function generateStrategyAction(
  * Steps:
  * 1. Upsert instruments (symbol + asset_type) for each leg.
  * 2. Insert an agent_runs row (kind = "generate").
- * 3. Insert a strategies row linked to the agent_runs row.
- * 4. Insert strategy_legs rows linked to the strategy + instruments.
+ * 3. Resolve (or create) the user's paper account to bind the strategy to.
+ * 4. Insert an *active* strategies row, bound to that paper account, linked to
+ *    the agent_runs row. Confirming a basket activates it so the scheduled
+ *    engine picks it up — this is the "Activate" step of the data flow.
+ * 5. Insert strategy_legs rows linked to the strategy + instruments.
  *
  * Returns the new strategy id.
  *
@@ -124,14 +127,59 @@ export async function saveStrategyAction(
 
   const runId = runRow.id;
 
-  // 3. Insert the strategy row.
+  // 3. Resolve the paper account this strategy runs against. Use the caller-
+  //    supplied accountId if given, otherwise the user's first/oldest account,
+  //    creating one (seeded from investable_capital, default 100k) if none
+  //    exists yet. The engine and scheduler key off this binding.
+  let resolvedAccountId = accountId;
+  if (!resolvedAccountId) {
+    const { data: existingAccount } = await supabase
+      .from("paper_accounts")
+      .select("id")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingAccount) {
+      resolvedAccountId = existingAccount.id;
+    } else {
+      const { data: profile } = await supabase
+        .from("investor_profiles")
+        .select("investable_capital")
+        .maybeSingle();
+      const seed =
+        typeof profile?.investable_capital === "number"
+          ? profile.investable_capital
+          : 100_000;
+
+      const { data: createdAccount, error: acctErr } = await supabase
+        .from("paper_accounts")
+        .insert({
+          user_id: userId,
+          starting_cash: seed,
+          cash_balance: seed,
+        })
+        .select("id")
+        .single();
+
+      if (acctErr || !createdAccount) {
+        throw new Error(
+          `Failed to create paper account: ${acctErr?.message ?? "no row returned"}`,
+        );
+      }
+      resolvedAccountId = createdAccount.id;
+    }
+  }
+
+  // 4. Insert the strategy row. Confirming a basket activates it (status =
+  //    "active") and binds it to the paper account so the scheduled engine
+  //    runs it. cashReservePct + rebalance live in parameters, where the
+  //    engine reads them.
   const strategyParameters: Record<string, unknown> = {
     rebalance: spec.rebalance,
     cashReservePct: spec.cashReservePct,
+    paper_account_id: resolvedAccountId,
   };
-  if (accountId) {
-    strategyParameters.paper_account_id = accountId;
-  }
 
   const { data: strategyRow, error: strategyError } = await supabase
     .from("strategies")
@@ -140,7 +188,7 @@ export async function saveStrategyAction(
       name: spec.name,
       description: spec.description,
       parameters: strategyParameters as unknown as import("@/lib/supabase/database.types").Json,
-      status: "draft",
+      status: "active",
       created_by_run_id: runId,
     })
     .select("id")
@@ -154,7 +202,7 @@ export async function saveStrategyAction(
 
   const strategyId = strategyRow.id;
 
-  // 4. Insert strategy_legs rows.
+  // 5. Insert strategy_legs rows.
   const legInserts = spec.legs.map((leg) => {
     const instrumentId = symbolToId.get(leg.symbol);
     if (!instrumentId) {
