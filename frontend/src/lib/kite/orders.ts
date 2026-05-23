@@ -1,9 +1,14 @@
 /**
- * Kite order client for live NSE equity buys.
+ * Kite order client for live NSE equity orders (buy and sell).
  *
  * THIS MODULE PLACES REAL MONEY ORDERS ON ZERODHA.
- * All guardrails must remain active. The kill-switch (KITE_LIVE_TRADING) is the
- * outermost defence; downstream guards are belt-and-suspenders.
+ *
+ * This is a low-stakes DEMO account. The money guardrails (per-order ₹ cap,
+ * daily ₹ cap, long-only) have been intentionally removed. Only correctness /
+ * dev-safety checks remain:
+ *   1. KITE_LIVE_TRADING kill switch (avoid firing real orders by accident).
+ *   2. Quantity must be an integer ≥ 1 (NSE equities can't be fractional).
+ *   3. AMO vs regular variety chosen by isMarketOpenIST().
  */
 
 // ---------------------------------------------------------------------------
@@ -13,7 +18,7 @@
 export interface PlaceOrderParams {
   /** NSE tradingsymbol, e.g. "RELIANCE". */
   symbol: string;
-  /** Only "buy" accepted in live mode; "sell" is rejected at the guardrail. */
+  /** Both "buy" and "sell" are allowed. */
   side: "buy" | "sell";
   /** Must be a positive integer ≥ 1. */
   quantity: number;
@@ -22,10 +27,10 @@ export interface PlaceOrderParams {
   /** Required when orderType === "LIMIT". */
   limitPrice?: number;
   /**
-   * Caller-supplied last traded price used for the ₹ notional guardrail.
-   * This does NOT have to be real-time; use the most recent quote you have.
+   * Caller-supplied last traded price. Retained for callers/logging; no longer
+   * used for any guardrail (the ₹ caps were removed for this demo account).
    */
-  lastPrice: number;
+  lastPrice?: number;
 }
 
 export type KiteOrderResult =
@@ -77,45 +82,19 @@ export function isMarketOpenIST(now: Date = new Date()): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Daily-cap helper (pure — no side effects)
-// ---------------------------------------------------------------------------
-
-const DEFAULT_MAX_DAILY_INR = 25_000;
-
-/**
- * Pure guardrail: throws (or returns an error string) if adding `addInr` to
- * `sumTodayInr` would exceed the daily INR cap.
- *
- * Env: KITE_MAX_DAILY_INR (default 25000).
- *
- * @returns void on success; throws Error on violation.
- */
-export function assertWithinDailyCap(sumTodayInr: number, addInr: number): void {
-  const cap = parseEnvInr("KITE_MAX_DAILY_INR", DEFAULT_MAX_DAILY_INR);
-  const total = sumTodayInr + addInr;
-  if (total > cap) {
-    throw new Error(
-      `Daily cap exceeded: ₹${sumTodayInr.toFixed(2)} spent today + ₹${addInr.toFixed(2)} new = ₹${total.toFixed(2)}, cap is ₹${cap}`
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Main order function
 // ---------------------------------------------------------------------------
 
 const KITE_API_ROOT = "https://api.kite.trade";
-const DEFAULT_MAX_ORDER_INR = 5_000;
 
 /**
- * Place a live NSE equity buy order via Kite Connect v3.
+ * Place a live NSE equity order (buy or sell) via Kite Connect v3.
  *
- * GUARDRAILS (enforced in order):
- *  1. Kill switch     — KITE_LIVE_TRADING must be "true"; otherwise dry-run (no fetch).
- *  2. Long-only       — "sell" side is rejected unconditionally in live mode.
- *  3. Per-order ₹ cap — quantity × lastPrice must be ≤ KITE_MAX_ORDER_INR (default 5000).
- *  4. Quantity        — must be integer ≥ 1.
- *  5. AMO vs regular  — uses variety="amo" outside market hours; "regular" during.
+ * GUARDRAILS (enforced in order) — money caps intentionally removed for this
+ * low-stakes demo account; only correctness / dev-safety remains:
+ *  1. Kill switch    — KITE_LIVE_TRADING must be "true"; otherwise dry-run (no fetch).
+ *  2. Quantity       — must be integer ≥ 1 (NSE equities can't be fractional).
+ *  3. AMO vs regular — uses variety="amo" outside market hours; "regular" during.
  *
  * On Kite API errors, returns { ok: false, error } rather than throwing —
  * callers must not assume a throw on order rejection.
@@ -129,7 +108,6 @@ export async function placeKiteOrder(params: PlaceOrderParams): Promise<KiteOrde
     quantity,
     orderType = "MARKET",
     limitPrice,
-    lastPrice,
   } = params;
 
   // ------------------------------------------------------------------
@@ -148,26 +126,7 @@ export async function placeKiteOrder(params: PlaceOrderParams): Promise<KiteOrde
   }
 
   // ------------------------------------------------------------------
-  // GUARDRAIL 2 — Long-only
-  // ------------------------------------------------------------------
-  if (side === "sell") {
-    return { ok: false, error: "live sells disabled" };
-  }
-
-  // ------------------------------------------------------------------
-  // GUARDRAIL 3 — Per-order ₹ cap
-  // ------------------------------------------------------------------
-  const maxOrderInr = parseEnvInr("KITE_MAX_ORDER_INR", DEFAULT_MAX_ORDER_INR);
-  const notional = quantity * lastPrice;
-  if (notional > maxOrderInr) {
-    return {
-      ok: false,
-      error: `Order notional ₹${notional.toFixed(2)} (${quantity} × ₹${lastPrice}) exceeds per-order cap ₹${maxOrderInr}`,
-    };
-  }
-
-  // ------------------------------------------------------------------
-  // GUARDRAIL 4 — Quantity: integer ≥ 1
+  // GUARDRAIL 2 — Quantity: integer ≥ 1
   // ------------------------------------------------------------------
   if (!Number.isInteger(quantity) || quantity < 1) {
     return {
@@ -190,7 +149,7 @@ export async function placeKiteOrder(params: PlaceOrderParams): Promise<KiteOrde
   const body = new URLSearchParams({
     exchange: "NSE",
     tradingsymbol: symbol,
-    transaction_type: "BUY",
+    transaction_type: side === "sell" ? "SELL" : "BUY",
     quantity: String(quantity),
     product: "CNC",
     order_type: orderType,
@@ -257,16 +216,6 @@ export async function placeKiteOrder(params: PlaceOrderParams): Promise<KiteOrde
 // ---------------------------------------------------------------------------
 // Internal utilities
 // ---------------------------------------------------------------------------
-
-function parseEnvInr(key: string, defaultValue: number): number {
-  const raw = process.env[key];
-  if (!raw) return defaultValue;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`${key} must be a positive number, got: ${raw}`);
-  }
-  return parsed;
-}
 
 function isKiteErrorShape(v: unknown): v is { message: string } {
   return (

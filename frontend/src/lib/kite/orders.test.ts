@@ -5,14 +5,10 @@
  * fetch is monkey-patched before each relevant test and restored after.
  */
 
-import { describe, it, before, after, beforeEach, afterEach } from "node:test";
+import { describe, it, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
-import {
-  isMarketOpenIST,
-  placeKiteOrder,
-  assertWithinDailyCap,
-} from "./orders";
+import { isMarketOpenIST, placeKiteOrder } from "./orders";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -104,57 +100,6 @@ describe("isMarketOpenIST", () => {
 });
 
 // ---------------------------------------------------------------------------
-// assertWithinDailyCap
-// ---------------------------------------------------------------------------
-
-describe("assertWithinDailyCap", () => {
-  let savedEnv: string | undefined;
-
-  before(() => {
-    savedEnv = process.env.KITE_MAX_DAILY_INR;
-    delete process.env.KITE_MAX_DAILY_INR;
-  });
-
-  after(() => {
-    if (savedEnv !== undefined) {
-      process.env.KITE_MAX_DAILY_INR = savedEnv;
-    } else {
-      delete process.env.KITE_MAX_DAILY_INR;
-    }
-  });
-
-  it("does not throw when within default cap (25000)", () => {
-    assert.doesNotThrow(() => assertWithinDailyCap(10_000, 5_000));
-  });
-
-  it("does not throw when exactly at the default cap", () => {
-    assert.doesNotThrow(() => assertWithinDailyCap(20_000, 5_000));
-  });
-
-  it("throws when exceeding default cap", () => {
-    assert.throws(
-      () => assertWithinDailyCap(20_000, 5_001),
-      /Daily cap exceeded/
-    );
-  });
-
-  it("respects KITE_MAX_DAILY_INR env override", () => {
-    process.env.KITE_MAX_DAILY_INR = "10000";
-    assert.throws(
-      () => assertWithinDailyCap(8_000, 2_001),
-      /Daily cap exceeded/
-    );
-    delete process.env.KITE_MAX_DAILY_INR;
-  });
-
-  it("does not throw within custom cap", () => {
-    process.env.KITE_MAX_DAILY_INR = "10000";
-    assert.doesNotThrow(() => assertWithinDailyCap(0, 9_999));
-    delete process.env.KITE_MAX_DAILY_INR;
-  });
-});
-
-// ---------------------------------------------------------------------------
 // placeKiteOrder — env setup shared by all order tests
 // ---------------------------------------------------------------------------
 
@@ -165,7 +110,6 @@ describe("placeKiteOrder", () => {
     "KITE_LIVE_TRADING",
     "KITE_API_KEY",
     "KITE_ACCESS_TOKEN",
-    "KITE_MAX_ORDER_INR",
   ] as const;
 
   before(() => {
@@ -187,7 +131,6 @@ describe("placeKiteOrder", () => {
     delete process.env.KITE_LIVE_TRADING;
     delete process.env.KITE_API_KEY;
     delete process.env.KITE_ACCESS_TOKEN;
-    delete process.env.KITE_MAX_ORDER_INR;
   });
 
   // ---- GUARDRAIL 1 — Kill switch / dry-run --------------------------------
@@ -236,109 +179,59 @@ describe("placeKiteOrder", () => {
     });
   });
 
-  // ---- GUARDRAIL 2 — Long-only --------------------------------------------
+  // ---- Sell is allowed (money/long-only guardrail removed) ----------------
 
-  describe("sell rejection (long-only)", () => {
-    it("rejects sell side with 'live sells disabled' when live flag is on", async () => {
+  describe("sell orders are allowed", () => {
+    it("places a sell order: reaches the Kite POST and returns ok with orderId", async () => {
       process.env.KITE_LIVE_TRADING = "true";
-      process.env.KITE_API_KEY = "test_key";
-      process.env.KITE_ACCESS_TOKEN = "test_token";
+      process.env.KITE_API_KEY = "key";
+      process.env.KITE_ACCESS_TOKEN = "token";
 
-      const restore = patchFetch(async () => {
-        throw new Error("fetch should not be called for a sell rejection");
+      let capturedBody = "";
+      const restore = patchFetch(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        capturedBody = String(init?.body ?? "");
+        return new Response(kiteSuccessBody("SELL_1"), { status: 200 });
       });
       try {
         const result = await placeKiteOrder({
           symbol: "TCS",
           side: "sell",
           quantity: 1,
-          lastPrice: 100,
-        });
-        assert.equal(result.ok, false);
-        assert.ok("error" in result);
-        assert.match(result.error, /live sells disabled/);
-      } finally {
-        globalThis.fetch = restore;
-      }
-    });
-  });
-
-  // ---- GUARDRAIL 3 — Per-order ₹ cap -------------------------------------
-
-  describe("per-order INR cap", () => {
-    it("rejects when quantity × lastPrice exceeds default cap (5000)", async () => {
-      process.env.KITE_LIVE_TRADING = "true";
-      process.env.KITE_API_KEY = "test_key";
-      process.env.KITE_ACCESS_TOKEN = "test_token";
-
-      const restore = patchFetch(async () => {
-        throw new Error("fetch should not be called on cap breach");
-      });
-      try {
-        // 10 × 501 = 5010 > 5000
-        const result = await placeKiteOrder({
-          symbol: "RELIANCE",
-          side: "buy",
-          quantity: 10,
-          lastPrice: 501,
-        });
-        assert.equal(result.ok, false);
-        assert.ok("error" in result);
-        assert.match(result.error, /exceeds per-order cap/);
-      } finally {
-        globalThis.fetch = restore;
-      }
-    });
-
-    it("allows order exactly at the default cap", async () => {
-      process.env.KITE_LIVE_TRADING = "true";
-      process.env.KITE_API_KEY = "test_key";
-      process.env.KITE_ACCESS_TOKEN = "test_token";
-
-      const restore = patchFetch(async () =>
-        new Response(kiteSuccessBody("999"), { status: 200 })
-      );
-      try {
-        // 50 × 100 = 5000 (exactly at cap)
-        const result = await placeKiteOrder({
-          symbol: "RELIANCE",
-          side: "buy",
-          quantity: 50,
-          lastPrice: 100,
         });
         assert.equal(result.ok, true);
+        // transaction_type must be SELL on the wire.
+        assert.match(capturedBody, /transaction_type=SELL/);
+        if (result.ok && !result.dryRun) {
+          assert.equal(result.orderId, "SELL_1");
+          assert.equal(result.side, "sell");
+        }
       } finally {
         globalThis.fetch = restore;
       }
     });
 
-    it("respects KITE_MAX_ORDER_INR env override", async () => {
-      process.env.KITE_LIVE_TRADING = "true";
-      process.env.KITE_API_KEY = "test_key";
-      process.env.KITE_ACCESS_TOKEN = "test_token";
-      process.env.KITE_MAX_ORDER_INR = "1000";
-
+    it("allows a sell in dry-run mode (no fetch) when live flag is off", async () => {
+      let fetchCalled = false;
       const restore = patchFetch(async () => {
-        throw new Error("fetch should not be called on cap breach");
+        fetchCalled = true;
+        return new Response("{}", { status: 200 });
       });
       try {
-        // 2 × 600 = 1200 > 1000
         const result = await placeKiteOrder({
-          symbol: "INFY",
-          side: "buy",
-          quantity: 2,
-          lastPrice: 600,
+          symbol: "TCS",
+          side: "sell",
+          quantity: 3,
         });
-        assert.equal(result.ok, false);
-        assert.ok("error" in result);
-        assert.match(result.error, /exceeds per-order cap/);
+        assert.equal(result.ok, true);
+        assert.ok("dryRun" in result && result.dryRun === true);
+        assert.equal(fetchCalled, false);
       } finally {
         globalThis.fetch = restore;
       }
     });
   });
 
-  // ---- GUARDRAIL 4 — Quantity validation ----------------------------------
+  // ---- GUARDRAIL 2 — Quantity validation ----------------------------------
 
   describe("quantity validation", () => {
     const invalidCases: Array<[number, string]> = [
@@ -396,7 +289,7 @@ describe("placeKiteOrder", () => {
     });
   });
 
-  // ---- GUARDRAIL 5 — AMO vs regular variety selection --------------------
+  // ---- GUARDRAIL 3 — AMO vs regular variety selection --------------------
 
   describe("AMO vs regular variety selection", () => {
     it("uses variety=amo when market is closed (Saturday)", async () => {
