@@ -66,6 +66,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <span>New Strategy</span>
         </Link>
 
+        <Link href="/agent" className={styles.newBtn}>
+          <BullIcon />
+          <span>Agent</span>
+        </Link>
+
         <div className={styles.sidebarFoot}>
           <span className={styles.liveDot} />
           <span>MARKET OPEN &middot; NYSE</span>

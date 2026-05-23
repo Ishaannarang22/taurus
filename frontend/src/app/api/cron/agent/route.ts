@@ -18,7 +18,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getMarketDataProvider } from "@/lib/market/index";
-import type { AgentRunResult } from "@/lib/agent/types";
+import { runAgent } from "@/lib/agent/harness";
 
 export const dynamic = "force-dynamic";
 
@@ -56,40 +56,7 @@ function authenticate(request: NextRequest): boolean {
   return scheme === "Bearer" && token === secret;
 }
 
-// ---------------------------------------------------------------------------
-// Integration shim — replaced at merge when Agent I's harness.ts lands.
-// ---------------------------------------------------------------------------
-// INTEGRATION STUB - replace at merge
-type ServiceClient = ReturnType<typeof createServiceClient>;
 type MarketProvider = ReturnType<typeof getMarketDataProvider>;
-
-let _runAgent: (
-  deps: { supabase: ServiceClient; market: MarketProvider },
-  input: { userId: string; accountId: string; instruction: string },
-) => Promise<AgentRunResult>;
-
-async function resolveRunAgent() {
-  if (_runAgent) return _runAgent;
-  try {
-    const mod = await import("@/lib/agent/harness");
-    if (typeof mod.runAgent === "function") {
-      _runAgent = mod.runAgent as typeof _runAgent;
-      return _runAgent;
-    }
-  } catch {
-    // Not yet merged.
-  }
-  // INTEGRATION STUB - replace at merge
-  _runAgent = async (_deps, input) => ({
-    runId: null,
-    summary: `[STUB] runAgent not merged. accountId=${input.accountId}`,
-    iterations: 0,
-    ordersPlaced: 0,
-    toolCalls: [],
-    notes: ["harness.ts not merged — stub result"],
-  });
-  return _runAgent;
-}
 
 // ---------------------------------------------------------------------------
 // Response shape
@@ -168,8 +135,6 @@ async function runCron(request: NextRequest): Promise<NextResponse<CronAgentResp
       { status: 500 },
     );
   }
-
-  const runAgent = await resolveRunAgent();
 
   const results: AccountResult[] = [];
   const errors: string[] = [];

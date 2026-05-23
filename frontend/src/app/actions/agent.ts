@@ -12,40 +12,8 @@ import { requireUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getOrCreatePaperAccount } from "@/lib/data/queries";
 import { getMarketDataProvider } from "@/lib/market/index";
+import { runAgent } from "@/lib/agent/harness";
 import type { AgentRunResult } from "@/lib/agent/types";
-
-// ---------------------------------------------------------------------------
-// Integration shim — replaced at merge when Agent I's harness.ts lands.
-// ---------------------------------------------------------------------------
-// INTEGRATION STUB - replace at merge
-let _runAgent: (
-  deps: { supabase: Awaited<ReturnType<typeof createClient>>; market: ReturnType<typeof getMarketDataProvider> },
-  input: { userId: string; accountId: string; instruction: string },
-) => Promise<AgentRunResult>;
-
-async function resolveRunAgent() {
-  if (_runAgent) return _runAgent;
-  try {
-    const mod = await import("@/lib/agent/harness");
-    if (typeof mod.runAgent === "function") {
-      _runAgent = mod.runAgent as typeof _runAgent;
-      return _runAgent;
-    }
-  } catch {
-    // harness.ts not yet merged — fall through to stub below
-  }
-  // Stub: returns a no-op result so the UI typechecks and renders correctly.
-  // INTEGRATION STUB - replace at merge
-  _runAgent = async (_deps, input) => ({
-    runId: null,
-    summary: `[STUB] runAgent not yet available. Instruction received: "${input.instruction}"`,
-    iterations: 0,
-    ordersPlaced: 0,
-    toolCalls: [],
-    notes: ["harness.ts not merged yet — this is a stub result"],
-  });
-  return _runAgent;
-}
 
 // ---------------------------------------------------------------------------
 // runAgentAction
@@ -76,8 +44,6 @@ export async function runAgentAction(instruction: string): Promise<AgentRunResul
 
   // Market data provider — throws clearly if ALPHA_VANTAGE_API_KEY is absent.
   const market = getMarketDataProvider();
-
-  const runAgent = await resolveRunAgent();
 
   try {
     return await runAgent({ supabase, market }, { userId, accountId, instruction });
