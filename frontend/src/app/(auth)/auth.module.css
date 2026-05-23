@@ -1,0 +1,166 @@
+/* Auth pages — login / signup
+   Minimal black/white aesthetic matching the Taurus dashboard.
+   Uses CSS custom properties defined in globals.css.
+*/
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+
+.card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  padding: 36px 32px 32px;
+}
+
+/* Brand row */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 32px;
+}
+
+.brandMark {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+}
+
+.brandMark svg {
+  width: 22px;
+  height: 22px;
+}
+
+.brandName {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+/* Heading */
+.heading {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.subheading {
+  font-size: 13px;
+  color: var(--ink-mute);
+  margin-bottom: 28px;
+}
+
+/* Form */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.input {
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  width: 100%;
+  transition: border-color 0.1s ease;
+  /* Inherit reset from globals.css means we need to re-apply box-sizing */
+  box-sizing: border-box;
+}
+
+.input:focus {
+  border-color: var(--ink);
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--ink-faint);
+}
+
+/* Error text */
+.error {
+  font-size: 12px;
+  color: var(--neg);
+  margin-top: -4px;
+}
+
+/* Submit button */
+.submitRow {
+  margin-top: 4px;
+}
+
+.submit {
+  width: 100%;
+  padding: 11px 18px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.1s ease, color 0.1s ease;
+  /* box-sizing for button */
+  box-sizing: border-box;
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--ink-soft);
+  border-color: var(--ink-soft);
+}
+
+.submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Footer link */
+.footer {
+  margin-top: 22px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-mute);
+}
+
+.footerLink {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.footerLink:hover {
+  color: var(--ink-soft);
+}
