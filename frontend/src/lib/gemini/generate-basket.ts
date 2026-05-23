@@ -9,7 +9,7 @@
 
 import type { StrategySpec } from "@/lib/domain/types";
 import { parseStrategySpec } from "@/lib/domain/strategy-spec";
-import { throttledGenAIClient } from "@/lib/gemini/client";
+import { throttledGenAIClient, GEMINI_MODEL } from "@/lib/gemini/client";
 
 export interface GenerateBasketOpts {
   /** Target number of legs (1..25). Default: model decides within the range. */
@@ -112,7 +112,7 @@ export async function generateBasket(
   }
 
   const response = await client.models.generateContent({
-    model: "gemini-3.5-flash",
+    model: GEMINI_MODEL,
     contents: [{ role: "user", parts: [{ text: userContent }] }],
     config: {
       systemInstruction: SYSTEM_PROMPT,
