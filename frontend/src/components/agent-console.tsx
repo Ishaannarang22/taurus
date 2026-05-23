@@ -18,6 +18,8 @@ import { runAgentAction } from "@/app/actions/agent";
 import type { AgentRunResult, RecordedToolCall } from "@/lib/agent/types";
 import styles from "./agent-console.module.css";
 
+const CLIENT_RUN_TIMEOUT_MS = 70_000;
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -115,20 +117,38 @@ export function AgentConsole() {
   const [instruction, setInstruction] = useState("");
   const [result, setResult] = useState<AgentRunResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const runSeq = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   function handleRun() {
-    if (!instruction.trim() || isPending) return;
+    if (!instruction.trim() || (isPending && !timedOut)) return;
+    const runId = runSeq.current + 1;
+    runSeq.current = runId;
     setResult(null);
     setError(null);
+    setTimedOut(false);
 
     startTransition(async () => {
+      const timeout = setTimeout(() => {
+        if (runSeq.current !== runId) return;
+        setTimedOut(true);
+        setError(
+          "Agent run is taking too long. The server will stop stalled model/tool calls automatically; you can retry now.",
+        );
+      }, CLIENT_RUN_TIMEOUT_MS);
+
       try {
         const res = await runAgentAction(instruction);
+        if (runSeq.current !== runId) return;
         setResult(res);
+        setTimedOut(false);
       } catch (err) {
+        if (runSeq.current !== runId) return;
         setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        clearTimeout(timeout);
       }
     });
   }
@@ -158,7 +178,7 @@ export function AgentConsole() {
           onKeyDown={handleKeyDown}
           placeholder="e.g. Invest 30% of my cash split equally across RELIANCE, TCS, and INFY"
           rows={4}
-          disabled={isPending}
+          disabled={isPending && !timedOut}
           aria-label="Trading instruction"
           spellCheck={false}
         />
@@ -171,7 +191,7 @@ export function AgentConsole() {
               type="button"
               className={styles.chip}
               onClick={() => setInstruction(ex)}
-              disabled={isPending}
+              disabled={isPending && !timedOut}
             >
               {ex}
             </button>
@@ -183,9 +203,9 @@ export function AgentConsole() {
             type="button"
             className={styles.runBtn}
             onClick={handleRun}
-            disabled={!instruction.trim() || isPending}
+            disabled={!instruction.trim() || (isPending && !timedOut)}
           >
-            {isPending ? (
+            {isPending && !timedOut ? (
               <span className={styles.thinking}>
                 <span className={styles.thinkingDots}>
                   <span /><span /><span />
@@ -193,7 +213,7 @@ export function AgentConsole() {
                 <span className={styles.thinkingLabel}>Running agent…</span>
               </span>
             ) : (
-              "RUN AGENT"
+              timedOut ? "RETRY AGENT" : "RUN AGENT"
             )}
           </button>
 

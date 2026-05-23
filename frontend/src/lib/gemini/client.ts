@@ -20,6 +20,9 @@ export const GEMINI_MODEL = "gemini-3.5-flash";
 const MIN_INTERVAL_MS = Number(process.env.GEMINI_MIN_INTERVAL_MS ?? 5000);
 const MAX_RETRIES = Number(process.env.GEMINI_MAX_RETRIES ?? 4);
 const MAX_BACKOFF_MS = 60_000;
+const REQUEST_TIMEOUT_MS = Number(
+  process.env.GEMINI_REQUEST_TIMEOUT_MS ?? 30_000,
+);
 
 export interface GenerateContentParams {
   model?: string;
@@ -51,6 +54,23 @@ let lastRequestAt = 0;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeout) clearTimeout(timeout);
+  });
+}
+
 /** Parse the retry delay (seconds) from a 429 error payload, if present. */
 function parseRetryDelayMs(err: unknown): number | null {
   const msg = err instanceof Error ? err.message : String(err);
@@ -81,12 +101,16 @@ export function geminiGenerateContent(
 
       try {
         lastRequestAt = Date.now();
-        const res = await client().models.generateContent({
-          model: params.model ?? GEMINI_MODEL,
-          // The SDK accepts string | Content[] for contents.
-          contents: params.contents as never,
-          config: params.config as never,
-        });
+        const res = await withTimeout(
+          client().models.generateContent({
+            model: params.model ?? GEMINI_MODEL,
+            // The SDK accepts string | Content[] for contents.
+            contents: params.contents as never,
+            config: params.config as never,
+          }),
+          REQUEST_TIMEOUT_MS,
+          "Gemini request",
+        );
         return {
           text: res.text,
           functionCalls: res.functionCalls as GenerateContentResponse["functionCalls"],

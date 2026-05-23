@@ -72,3 +72,22 @@ export function OrdersIcon() {
     </svg>
   );
 }
+
+export function InvestmentsIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M2.5 12.5h11" />
+      <path d="M4 10V6" />
+      <path d="M8 10V3.5" />
+      <path d="M12 10V7.5" />
+    </svg>
+  );
+}

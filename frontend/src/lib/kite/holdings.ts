@@ -120,7 +120,8 @@ export const getKiteHoldingsSnapshot = cache(
         investments,
       };
     } catch (err) {
-      console.error("[kite/holdings] sync failed:", err);
+      const message = err instanceof Error ? err.message : "unknown error";
+      console.warn(`[kite/holdings] sync skipped: ${message}`);
       return null;
     }
   },

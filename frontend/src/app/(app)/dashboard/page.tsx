@@ -7,13 +7,11 @@ import {
   getPerformanceSeries,
 } from "@/lib/data/queries";
 import { PositionsTable } from "@/components/positions-table";
-import { KiteInvestmentsTable } from "@/components/kite-investments-table";
 import { PerformancePanel } from "@/components/performance-panel";
 import { StrategyChat } from "@/components/strategy-chat";
 import { ArrowIcon } from "@/components/icons";
 import { formatINR, formatINRCompact } from "@/lib/format";
 import { getMarketDataSourceLabel } from "@/lib/market/source";
-import { getKiteHoldingsSnapshot } from "@/lib/kite/holdings";
 import styles from "./page.module.css";
 
 interface PageProps {
@@ -27,10 +25,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const db = await createClient();
 
   // Account (for the equity curve) + full strategy list to find the active one.
-  const [account, strategies, kiteHoldings] = await Promise.all([
+  const [account, strategies] = await Promise.all([
     getOrCreatePaperAccount(db),
     listStrategies(db),
-    getKiteHoldingsSnapshot(),
   ]);
 
   // Resolve which strategy is active: URL param → first in list → null.
@@ -43,38 +40,27 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   const accountSnapshot = {
     cash: account.cashBalance,
-    invested: kiteHoldings?.holdingsValue ?? account.investedValue,
-    total: account.cashBalance + (kiteHoldings?.holdingsValue ?? account.investedValue),
-    pnl: kiteHoldings?.pnl ?? null,
-    pnlPct: kiteHoldings?.pnlPct ?? null,
-    source: kiteHoldings
-      ? `Paper cash · Kite investments`
-      : `Paper · ${getMarketDataSourceLabel()}`,
-    syncedAt: kiteHoldings?.syncedAt ?? null,
+    invested: account.investedValue,
+    total: account.totalValue,
+    pnl: null,
+    pnlPct: null,
+    source: `Paper · ${getMarketDataSourceLabel()}`,
+    syncedAt: null,
   };
-
-  const currentInvestments = kiteHoldings ? (
-    <KiteInvestmentsTable investments={kiteHoldings.investments} />
-  ) : (
-    <PositionsTable positions={positions} />
-  );
 
   // No strategies yet — show an empty-state prompt.
   if (strategies.length === 0 || !activeDetail) {
     return (
       <div className={styles.page}>
         <LiveAccountBar snapshot={accountSnapshot} />
-        <div className={kiteHoldings ? styles.emptyWithInvestments : styles.emptyState}>
-          <div className={styles.emptyState}>
-            <div className={styles.emptyInner}>
-              <p className={styles.emptyHint}>No paper strategies yet.</p>
-              <Link href="/strategies/new" className={styles.emptyAction}>
-                Build your first paper basket
-                <ArrowIcon />
-              </Link>
-            </div>
+        <div className={styles.emptyState}>
+          <div className={styles.emptyInner}>
+            <p className={styles.emptyHint}>No paper strategies yet.</p>
+            <Link href="/strategies/new" className={styles.emptyAction}>
+              Build your first paper basket
+              <ArrowIcon />
+            </Link>
           </div>
-          {kiteHoldings && <KiteInvestmentsTable investments={kiteHoldings.investments} />}
         </div>
       </div>
     );
@@ -139,7 +125,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
       {/* ===== BOTTOM: positions + performance ===== */}
       <div className={styles.lower}>
-        {currentInvestments}
+        <PositionsTable positions={positions} />
         <PerformancePanel series={series} />
       </div>
     </div>

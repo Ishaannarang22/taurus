@@ -46,7 +46,18 @@ export async function runAgentAction(instruction: string): Promise<AgentRunResul
   const market = getMarketDataProvider();
 
   try {
-    return await runAgent({ supabase, market }, { userId, accountId, instruction });
+    return await runAgent(
+      { supabase, market },
+      {
+        userId,
+        accountId,
+        instruction,
+        limits: {
+          maxIterations: 4,
+          maxOrders: 10,
+        },
+      },
+    );
   } catch (err) {
     // Surface a clean error message to the client.
     const message = err instanceof Error ? err.message : String(err);

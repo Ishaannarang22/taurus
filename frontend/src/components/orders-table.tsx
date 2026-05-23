@@ -13,14 +13,14 @@ export function OrdersTable({ orders, isAfterHours }: Props) {
   return (
     <div className={styles.panel}>
       <div className={styles.head}>
-        <h3>Pending Orders</h3>
+        <h3>Order Book</h3>
         <span className={styles.meta}>
-          {orders.length} pending &middot; {liveCount} live
+          {orders.length} open &middot; {liveCount} live
         </span>
       </div>
       <div className={styles.tableWrap}>
         {orders.length === 0 ? (
-          <div className={styles.empty}>No pending orders</div>
+          <div className={styles.empty}>No open orders</div>
         ) : (
           <table className={styles.table}>
             <thead>
@@ -30,7 +30,9 @@ export function OrdersTable({ orders, isAfterHours }: Props) {
                 <th>Strategy</th>
                 <th className={styles.right}>Qty</th>
                 <th className={styles.right}>Limit</th>
+                <th className={styles.right}>Status</th>
                 <th className={styles.right}>Variety</th>
+                <th className={styles.right}>Broker</th>
                 <th className={styles.right}>Created</th>
               </tr>
             </thead>
@@ -50,9 +52,15 @@ export function OrdersTable({ orders, isAfterHours }: Props) {
                     {order.limitPrice == null ? "-" : formatINRCompact(order.limitPrice)}
                   </td>
                   <td className={`${styles.num} ${styles.right}`}>
+                    {order.status.replace("_", " ").toUpperCase()}
+                  </td>
+                  <td className={`${styles.num} ${styles.right}`}>
                     <span className={isAfterHours ? styles.amoTag : styles.regularTag}>
                       {order.variety.toUpperCase()}
                     </span>
+                  </td>
+                  <td className={`${styles.num} ${styles.right}`}>
+                    {order.brokerOrderId ?? "-"}
                   </td>
                   <td className={`${styles.num} ${styles.right}`}>
                     {formatDateTime(order.createdAt)}

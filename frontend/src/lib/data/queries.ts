@@ -539,7 +539,7 @@ export async function listTrades(
 // ---------------------------------------------------------------------------
 
 /**
- * Return all pending orders for the authenticated user, newest first.
+ * Return all open orders for the authenticated user, newest first.
  * The order variety is supplied by the caller because it depends on market
  * hours at render/execution time rather than a persisted order column.
  */
@@ -550,10 +550,10 @@ export async function listPendingOrders(
   const { data: rows, error } = await db
     .from("orders")
     .select(
-      "id, side, order_type, quantity, limit_price, mode, created_at, submitted_at, " +
+      "id, side, order_type, quantity, limit_price, mode, status, broker_order_id, created_at, submitted_at, " +
       "instruments(symbol, name), strategies(name)"
     )
-    .eq("status", "pending")
+    .in("status", ["pending", "submitted", "partially_filled"])
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`pending orders fetch: ${error.message}`);
@@ -565,6 +565,8 @@ export async function listPendingOrders(
     quantity: number;
     limit_price: number | null;
     mode: string;
+    status: string;
+    broker_order_id: string | null;
     created_at: string;
     submitted_at: string | null;
     instruments: { symbol: string; name: string | null } | null;
@@ -580,6 +582,8 @@ export async function listPendingOrders(
     quantity: r.quantity,
     limitPrice: r.limit_price,
     mode: r.mode as PendingOrderView["mode"],
+    status: r.status as PendingOrderView["status"],
+    brokerOrderId: r.broker_order_id,
     strategyName: r.strategies?.name ?? null,
     createdAt: r.created_at,
     submittedAt: r.submitted_at,

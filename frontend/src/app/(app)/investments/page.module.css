@@ -1,6 +1,6 @@
 .page {
   display: grid;
-  grid-template-rows: 58px auto 1fr;
+  grid-template-rows: 58px 1fr;
   height: 100%;
   overflow: hidden;
 }
@@ -26,31 +26,29 @@
   color: var(--ink-mute);
 }
 
-.session {
+.summary {
   display: flex;
   align-items: center;
+  gap: 22px;
+}
+
+.summary div {
+  display: flex;
+  align-items: baseline;
   gap: 8px;
+}
+
+.summary strong {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--ink-mute);
-}
-
-.session strong {
+  font-size: 13px;
+  font-weight: 600;
   color: var(--ink);
-  font-size: 11px;
 }
 
-.openDot,
-.closedDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+.pos {
+  color: var(--pos) !important;
 }
 
-.openDot {
-  background: var(--pos);
-}
-
-.closedDot {
-  background: var(--ink-faint);
+.neg {
+  color: var(--neg) !important;
 }

@@ -60,6 +60,14 @@ export interface PendingOrderView {
   quantity: number;
   limitPrice: number | null;
   mode: "paper" | "live";
+  status:
+    | "pending"
+    | "submitted"
+    | "partially_filled"
+    | "filled"
+    | "cancelled"
+    | "rejected";
+  brokerOrderId: string | null;
   strategyName: string | null;
   createdAt: string;
   submittedAt: string | null;

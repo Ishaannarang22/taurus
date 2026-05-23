@@ -74,6 +74,13 @@ When you have completed the user's instruction — or determined that nothing ca
 ERRORS
 If a tool returns an error, log it mentally and decide whether to retry, skip, or finish early. Do not loop forever on a failing tool.`;
 
+const MODEL_CALL_TIMEOUT_MS = Number(
+  process.env.AGENT_MODEL_CALL_TIMEOUT_MS ?? 45_000,
+);
+const TOOL_CALL_TIMEOUT_MS = Number(
+  process.env.AGENT_TOOL_CALL_TIMEOUT_MS ?? 15_000,
+);
+
 // ---------------------------------------------------------------------------
 // Conversation content helpers
 // ---------------------------------------------------------------------------
@@ -83,6 +90,23 @@ type Part = GeminiPart;
 interface ConversationTurn {
   role: "user" | "model";
   parts: Part[];
+}
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    clearTimeout(timeout);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -201,7 +225,11 @@ export async function runAgent(
             tools: [{ functionDeclarations }],
           },
         };
-        response = await generate(params);
+        response = await withTimeout(
+          generate(params),
+          MODEL_CALL_TIMEOUT_MS,
+          "Gemini call",
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         fatalError = `Gemini call failed: ${msg}`;
@@ -259,7 +287,11 @@ export async function runAgent(
 
         // Finish tool
         if (toolName === "finish") {
-          const result = await tool.run(fc.args, ctx);
+          const result = await withTimeout(
+            tool.run(fc.args, ctx),
+            TOOL_CALL_TIMEOUT_MS,
+            `Tool ${toolName}`,
+          );
           toolCalls.push({ name: toolName, args: fc.args, result });
           responseParts.push({
             functionResponse: {
@@ -326,7 +358,11 @@ export async function runAgent(
         // Execute tool
         let result: ToolResult;
         try {
-          result = await tool.run(fc.args, ctx);
+          result = await withTimeout(
+            tool.run(fc.args, ctx),
+            TOOL_CALL_TIMEOUT_MS,
+            `Tool ${toolName}`,
+          );
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           result = { ok: false, error: `Tool threw: ${msg}` };
