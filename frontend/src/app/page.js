@@ -616,10 +616,13 @@ export default function Home() {
               <div className="msg taurus">
                 <div className="msg-role">Taurus</div>
                 <div className="msg-body">
-                  <span className="typing">
-                    <span />
-                    <span />
-                    <span />
+                  <span className="thinking">
+                    <span className="thinking-dots">
+                      <span />
+                      <span />
+                      <span />
+                    </span>
+                    <span className="thinking-label">Building your strategy…</span>
                   </span>
                 </div>
               </div>
