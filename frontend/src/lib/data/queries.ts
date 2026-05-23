@@ -18,6 +18,7 @@ import type { MarketDataProvider } from "@/lib/domain/types";
 import type {
   PaperAccountView,
   PositionView,
+  PendingOrderView,
   StrategySummaryView,
   StrategyDetailView,
   TradeView,
@@ -530,6 +531,59 @@ export async function listTrades(
     quantity: r.quantity,
     price: r.price,
     executedAt: r.executed_at,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// listPendingOrders
+// ---------------------------------------------------------------------------
+
+/**
+ * Return all pending orders for the authenticated user, newest first.
+ * The order variety is supplied by the caller because it depends on market
+ * hours at render/execution time rather than a persisted order column.
+ */
+export async function listPendingOrders(
+  db: DbClient,
+  variety: "regular" | "amo",
+): Promise<PendingOrderView[]> {
+  const { data: rows, error } = await db
+    .from("orders")
+    .select(
+      "id, side, order_type, quantity, limit_price, mode, created_at, submitted_at, " +
+      "instruments(symbol, name), strategies(name)"
+    )
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(`pending orders fetch: ${error.message}`);
+
+  type PendingOrderRow = {
+    id: string;
+    side: string;
+    order_type: string;
+    quantity: number;
+    limit_price: number | null;
+    mode: string;
+    created_at: string;
+    submitted_at: string | null;
+    instruments: { symbol: string; name: string | null } | null;
+    strategies: { name: string } | null;
+  };
+
+  return ((rows ?? []) as unknown as PendingOrderRow[]).map((r) => ({
+    id: r.id,
+    symbol: r.instruments?.symbol ?? "(unknown)",
+    name: r.instruments?.name ?? null,
+    side: r.side as PendingOrderView["side"],
+    orderType: r.order_type as PendingOrderView["orderType"],
+    quantity: r.quantity,
+    limitPrice: r.limit_price,
+    mode: r.mode as PendingOrderView["mode"],
+    strategyName: r.strategies?.name ?? null,
+    createdAt: r.created_at,
+    submittedAt: r.submitted_at,
+    variety,
   }));
 }
 

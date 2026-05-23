@@ -1,8 +1,55 @@
 .page {
   display: grid;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: 58px 1fr 1fr;
   height: 100%;
   overflow: hidden;
+}
+
+/* ===== LIVE ACCOUNT BAR ===== */
+
+.accountBar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(128px, auto)) 1fr;
+  align-items: center;
+  gap: 22px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.accountCell {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.accountCell span,
+.accountSource {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+.accountCell strong {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.accountSource {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.pos {
+  color: var(--pos) !important;
+}
+
+.neg {
+  color: var(--neg) !important;
 }
 
 /* ===== TOP: chat section ===== */
@@ -152,12 +199,25 @@
   overflow: hidden;
 }
 
+.emptyWithInvestments {
+  grid-row: 2 / span 2;
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  overflow: hidden;
+}
+
 /* ===== empty state ===== */
 
 .emptyState {
+  grid-row: 2 / span 2;
   display: grid;
   place-items: center;
   height: 100%;
+}
+
+.emptyWithInvestments .emptyState {
+  grid-row: auto;
+  border-right: 1px solid var(--line);
 }
 
 .emptyInner {

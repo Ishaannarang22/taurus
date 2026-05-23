@@ -53,3 +53,22 @@ export function PlusIcon() {
     </svg>
   );
 }
+
+export function OrdersIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4.5 2.5h7v11h-7z" />
+      <path d="M6.5 5.5h3" />
+      <path d="M6.5 8h3" />
+      <path d="M6.5 10.5h2" />
+    </svg>
+  );
+}

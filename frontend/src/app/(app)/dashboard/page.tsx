@@ -7,10 +7,13 @@ import {
   getPerformanceSeries,
 } from "@/lib/data/queries";
 import { PositionsTable } from "@/components/positions-table";
+import { KiteInvestmentsTable } from "@/components/kite-investments-table";
 import { PerformancePanel } from "@/components/performance-panel";
 import { StrategyChat } from "@/components/strategy-chat";
 import { ArrowIcon } from "@/components/icons";
-import { formatINRCompact } from "@/lib/format";
+import { formatINR, formatINRCompact } from "@/lib/format";
+import { getMarketDataSourceLabel } from "@/lib/market/source";
+import { getKiteHoldingsSnapshot } from "@/lib/kite/holdings";
 import styles from "./page.module.css";
 
 interface PageProps {
@@ -24,9 +27,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const db = await createClient();
 
   // Account (for the equity curve) + full strategy list to find the active one.
-  const [account, strategies] = await Promise.all([
+  const [account, strategies, kiteHoldings] = await Promise.all([
     getOrCreatePaperAccount(db),
     listStrategies(db),
+    getKiteHoldingsSnapshot(),
   ]);
 
   // Resolve which strategy is active: URL param → first in list → null.
@@ -37,16 +41,40 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const positions = activeDetail?.positions ?? [];
   const series = await getPerformanceSeries(db, account.id);
 
+  const accountSnapshot = {
+    cash: account.cashBalance,
+    invested: kiteHoldings?.holdingsValue ?? account.investedValue,
+    total: account.cashBalance + (kiteHoldings?.holdingsValue ?? account.investedValue),
+    pnl: kiteHoldings?.pnl ?? null,
+    pnlPct: kiteHoldings?.pnlPct ?? null,
+    source: kiteHoldings
+      ? `Paper cash · Kite investments`
+      : `Paper · ${getMarketDataSourceLabel()}`,
+    syncedAt: kiteHoldings?.syncedAt ?? null,
+  };
+
+  const currentInvestments = kiteHoldings ? (
+    <KiteInvestmentsTable investments={kiteHoldings.investments} />
+  ) : (
+    <PositionsTable positions={positions} />
+  );
+
   // No strategies yet — show an empty-state prompt.
   if (strategies.length === 0 || !activeDetail) {
     return (
-      <div className={styles.emptyState}>
-        <div className={styles.emptyInner}>
-          <p className={styles.emptyHint}>No strategies yet.</p>
-          <Link href="/strategies/new" className={styles.emptyAction}>
-            Build your first basket
-            <ArrowIcon />
-          </Link>
+      <div className={styles.page}>
+        <LiveAccountBar snapshot={accountSnapshot} />
+        <div className={kiteHoldings ? styles.emptyWithInvestments : styles.emptyState}>
+          <div className={styles.emptyState}>
+            <div className={styles.emptyInner}>
+              <p className={styles.emptyHint}>No paper strategies yet.</p>
+              <Link href="/strategies/new" className={styles.emptyAction}>
+                Build your first paper basket
+                <ArrowIcon />
+              </Link>
+            </div>
+          </div>
+          {kiteHoldings && <KiteInvestmentsTable investments={kiteHoldings.investments} />}
         </div>
       </div>
     );
@@ -54,6 +82,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   return (
     <div className={styles.page}>
+      <LiveAccountBar snapshot={accountSnapshot} />
       {/* ===== TOP: strategy header + chat ===== */}
       <div className={styles.chatSection}>
         <div className={styles.chatHead}>
@@ -110,8 +139,53 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
       {/* ===== BOTTOM: positions + performance ===== */}
       <div className={styles.lower}>
-        <PositionsTable positions={positions} />
+        {currentInvestments}
         <PerformancePanel series={series} />
+      </div>
+    </div>
+  );
+}
+
+interface AccountSnapshot {
+  cash: number;
+  invested: number;
+  total: number;
+  pnl: number | null;
+  pnlPct: number | null;
+  source: string;
+  syncedAt: string | null;
+}
+
+function LiveAccountBar({ snapshot }: { snapshot: AccountSnapshot }) {
+  const pnlIsPositive = (snapshot.pnl ?? 0) >= 0;
+  return (
+    <div className={styles.accountBar}>
+      <div className={styles.accountCell}>
+        <span>Available</span>
+        <strong>{formatINR(snapshot.cash)}</strong>
+      </div>
+      <div className={styles.accountCell}>
+        <span>Invested</span>
+        <strong>{formatINRCompact(snapshot.invested)}</strong>
+      </div>
+      <div className={styles.accountCell}>
+        <span>Total</span>
+        <strong>{formatINRCompact(snapshot.total)}</strong>
+      </div>
+      {snapshot.pnl != null && (
+        <div className={styles.accountCell}>
+          <span>P&amp;L</span>
+          <strong className={pnlIsPositive ? styles.pos : styles.neg}>
+            {formatINRCompact(snapshot.pnl)}
+            {snapshot.pnlPct != null
+              ? ` (${pnlIsPositive ? "+" : ""}${(snapshot.pnlPct * 100).toFixed(2)}%)`
+              : ""}
+          </strong>
+        </div>
+      )}
+      <div className={styles.accountSource}>
+        {snapshot.source}
+        {snapshot.syncedAt ? ` · ${snapshot.syncedAt.slice(11, 16)} UTC` : ""}
       </div>
     </div>
   );

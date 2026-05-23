@@ -51,6 +51,21 @@ export interface TradeView {
   executedAt: string;
 }
 
+export interface PendingOrderView {
+  id: string;
+  symbol: string;
+  name: string | null;
+  side: "buy" | "sell";
+  orderType: "market" | "limit" | "stop" | "stop_limit";
+  quantity: number;
+  limitPrice: number | null;
+  mode: "paper" | "live";
+  strategyName: string | null;
+  createdAt: string;
+  submittedAt: string | null;
+  variety: "regular" | "amo";
+}
+
 export interface PerformancePoint {
   t: string; // ISO date
   value: number;

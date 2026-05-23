@@ -206,9 +206,8 @@ export function buildTools(
     declaration: {
       name: "place_order",
       description:
-        "Place a buy or sell order for an NSE stock (amounts in ₹). " +
-        "Always recorded in the paper portfolio; when live trading is armed it " +
-        "is also sent to Zerodha (AMO after hours, regular during market hours). " +
+        "Place a PAPER buy or sell order for an NSE stock using live Kite prices (amounts in ₹). " +
+        "No real broker order is sent unless the server is explicitly armed with KITE_LIVE_TRADING=true. " +
         "Specify either quantity (shares) or notional (₹), not both.",
       parameters: {
         type: "object",
@@ -228,7 +227,7 @@ export function buildTools(
           },
           notional: {
             type: "number",
-            description: "Dollar amount to trade. Mutually exclusive with quantity.",
+            description: "Rupee amount to trade. Mutually exclusive with quantity.",
           },
         },
         required: ["symbol", "side"],

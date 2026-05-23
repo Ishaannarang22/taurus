@@ -1,0 +1,56 @@
+.page {
+  display: grid;
+  grid-template-rows: 58px 1fr;
+  height: 100%;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.header h1 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.header span {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+.session {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+.session strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.openDot,
+.closedDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.openDot {
+  background: var(--pos);
+}
+
+.closedDot {
+  background: var(--ink-faint);
+}
