@@ -111,6 +111,47 @@ test("rejects both quantity and notional", () => {
   assert.equal(r.ok, false);
 });
 
+test("rejects order whose notional exceeds maxNotional (quantity-sized)", () => {
+  const r = planSingleOrder({
+    side: "buy",
+    price: 500,
+    quantity: 10, // notional = 5000
+    cashBalance: 1_000_000,
+    positionQty: 0,
+    positionAvg: 0,
+    maxNotional: 1000,
+  });
+  assert.equal(r.ok, false);
+  assert.match(r.error!, /notional/);
+});
+
+test("allows order at exactly maxNotional", () => {
+  const r = planSingleOrder({
+    side: "buy",
+    price: 100,
+    quantity: 10, // notional = 1000
+    cashBalance: 1_000_000,
+    positionQty: 0,
+    positionAvg: 0,
+    maxNotional: 1000,
+  });
+  assert.equal(r.ok, true);
+});
+
+test("maxNotional also caps sell orders", () => {
+  const r = planSingleOrder({
+    side: "sell",
+    price: 500,
+    quantity: 10, // notional = 5000
+    cashBalance: 0,
+    positionQty: 100,
+    positionAvg: 100,
+    maxNotional: 1000,
+  });
+  assert.equal(r.ok, false);
+  assert.match(r.error!, /notional/);
+});
+
 test("rejects non-positive price", () => {
   const r = planSingleOrder({
     side: "buy",

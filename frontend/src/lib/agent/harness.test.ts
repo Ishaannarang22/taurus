@@ -303,7 +303,7 @@ describe("runAgent", () => {
     assert.equal(result.summary, "Done placing orders.");
   });
 
-  it("rejects order whose notional exceeds maxOrderNotional", async () => {
+  it("rejects dollar-sized order whose notional exceeds maxOrderNotional (harness pre-check)", async () => {
     const supabase = makeFakeSupabase();
     let orderExecuted = false;
 
@@ -312,13 +312,14 @@ describe("runAgent", () => {
       return { ok: true, data: { orderId: "ord-big" } };
     });
 
-    // Order notional = 10000 * 500 = 5_000_000, exceeds default 1_000_000
+    // notional = $5_000_000 (dollar-sized) exceeds the default $1_000_000 cap.
+    // This is known up-front, so the harness rejects before any tool I/O.
     const gemini = makeFakeGemini([
       {
         functionCalls: [
           {
             name: "place_order",
-            args: { symbol: "EXPENSIVE", quantity: 10000, price: 500 },
+            args: { symbol: "EXPENSIVE", notional: 5_000_000 },
           },
         ],
         raw: {},
@@ -332,7 +333,7 @@ describe("runAgent", () => {
     const input: AgentRunInput = {
       userId: "user-4",
       accountId: "acct-4",
-      instruction: "Buy 10000 shares of EXPENSIVE.",
+      instruction: "Buy $5,000,000 of EXPENSIVE.",
     };
 
     const deps: RunAgentDeps = {
@@ -349,6 +350,46 @@ describe("runAgent", () => {
     assert.ok(
       result.notes.some((n) => n.includes("notional")),
       "should note notional rejection",
+    );
+  });
+
+  it("threads runId and maxOrderNotional into the build-time context", async () => {
+    const supabase = makeFakeSupabase();
+    let seenCtx: AgentContext | undefined;
+
+    const fakeFinish = makeFakeTool("finish", async (_args, ctx) => {
+      seenCtx = ctx;
+      return { ok: true, data: { summary: "done" } };
+    });
+
+    const gemini = makeFakeGemini([
+      { functionCalls: [{ name: "finish", args: { summary: "done" } }], raw: {} },
+    ]);
+
+    const deps: RunAgentDeps = {
+      supabase,
+      market: fakeMarket,
+      generateContent: gemini,
+      // Capture the ctx the harness hands to buildTools.
+      buildToolsFn: (ctx) => {
+        seenCtx = ctx;
+        return [fakeFinish];
+      },
+    };
+
+    await runAgent(deps, {
+      userId: "user-5",
+      accountId: "acct-5",
+      instruction: "Just finish.",
+      limits: { maxOrderNotional: 12_345 },
+    });
+
+    assert.ok(seenCtx, "ctx should have been captured");
+    assert.equal(seenCtx!.runId, "fake-run-id", "ctx.runId must be the agent_runs id");
+    assert.equal(
+      seenCtx!.maxOrderNotional,
+      12_345,
+      "ctx.maxOrderNotional must reflect the configured limit",
     );
   });
 });

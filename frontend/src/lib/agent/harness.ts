@@ -106,6 +106,7 @@ export async function runAgent(
   const ctx: AgentContext = {
     userId: input.userId,
     accountId: input.accountId,
+    maxOrderNotional: limits.maxOrderNotional,
   };
 
   // --- 1. Insert agent_runs row ---
@@ -125,6 +126,7 @@ export async function runAgent(
       .single();
     if (error) throw error;
     runId = data.id;
+    ctx.runId = runId;
   } catch (err) {
     // Non-fatal: carry on without a run ID rather than aborting.
     console.error("[agent/harness] failed to insert agent_runs row:", err);
@@ -281,27 +283,25 @@ export async function runAgent(
             continue;
           }
 
-          // maxOrderNotional check
-          const quantity =
-            typeof fc.args.quantity === "number" ? fc.args.quantity : 0;
-          const price =
-            typeof fc.args.price === "number"
-              ? fc.args.price
-              : typeof fc.args.limit_price === "number"
-                ? fc.args.limit_price
-                : 0;
-          const notional = quantity * price;
-          if (notional > limits.maxOrderNotional) {
+          // maxOrderNotional pre-check (dollar sizing only).
+          // When the model sizes by `notional` (dollars) the cap is known
+          // up-front and we reject here before any I/O. When it sizes by
+          // `quantity` the fill price is unknown until the quote is fetched, so
+          // the authoritative cap is enforced inside planSingleOrder (via
+          // ctx.maxOrderNotional → executeOrder), which CANNOT be bypassed.
+          const argNotional =
+            typeof fc.args.notional === "number" ? fc.args.notional : 0;
+          if (argNotional > limits.maxOrderNotional) {
             const result: ToolResult = {
               ok: false,
-              error: `Order notional $${notional.toFixed(2)} exceeds maxOrderNotional $${limits.maxOrderNotional}. Reduce quantity.`,
+              error: `Order notional $${argNotional.toFixed(2)} exceeds maxOrderNotional $${limits.maxOrderNotional}. Reduce the amount.`,
             };
             toolCalls.push({ name: toolName, args: fc.args, result });
             responseParts.push({
               functionResponse: { name: toolName, response: result },
             });
             notes.push(
-              `Order notional $${notional.toFixed(2)} rejected (limit $${limits.maxOrderNotional}).`,
+              `Order notional $${argNotional.toFixed(2)} rejected (limit $${limits.maxOrderNotional}).`,
             );
             continue;
           }

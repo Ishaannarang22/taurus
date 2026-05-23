@@ -22,6 +22,8 @@ export interface PlanSingleOrderInput {
   cashBalance: number;
   positionQty: number; // shares currently held
   positionAvg: number; // current weighted-avg entry price
+  /** Optional hard cap on the dollar notional (qty * price) of this order. */
+  maxNotional?: number;
 }
 
 export interface PlanSingleOrderResult {
@@ -48,8 +50,16 @@ const fail = (error: string): PlanSingleOrderResult => ({
 export function planSingleOrder(
   input: PlanSingleOrderInput,
 ): PlanSingleOrderResult {
-  const { side, price, quantity, notional, cashBalance, positionQty, positionAvg } =
-    input;
+  const {
+    side,
+    price,
+    quantity,
+    notional,
+    cashBalance,
+    positionQty,
+    positionAvg,
+    maxNotional,
+  } = input;
 
   if (!(price > 0)) return fail("invalid price");
 
@@ -66,6 +76,17 @@ export function planSingleOrder(
   }
 
   if (!(qty > 0)) return fail("quantity must be positive");
+
+  // Notional cap — enforced where the real fill price is known, so it cannot
+  // be bypassed by sizing via `quantity` (price is unknown to the model).
+  if (maxNotional != null) {
+    const orderNotional = qty * price;
+    if (orderNotional > maxNotional + 1e-9) {
+      return fail(
+        `order notional ${orderNotional.toFixed(2)} exceeds limit ${maxNotional.toFixed(2)}`,
+      );
+    }
+  }
 
   if (side === "buy") {
     const cost = qty * price;

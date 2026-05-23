@@ -24,6 +24,10 @@ export interface ToolResult {
 export interface AgentContext {
   userId: string;
   accountId: string;
+  /** agent_runs.id for this run, tagged onto orders/trades for lineage. */
+  runId?: string | null;
+  /** Hard per-order notional cap, enforced in the guardrail core. */
+  maxOrderNotional?: number;
 }
 
 /** Hard limits enforced by the loop/dispatcher regardless of model behavior. */

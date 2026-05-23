@@ -195,11 +195,21 @@ export async function getOrCreatePaperAccount(
  */
 export async function listStrategies(
   db: DbClient,
+  /**
+   * Optional explicit owner scope. RLS already isolates session clients, but
+   * the agent cron uses the service-role client (RLS bypassed); passing userId
+   * keeps strategy reads account-isolated there too.
+   */
+  userId?: string,
 ): Promise<StrategySummaryView[]> {
-  const { data: rows, error } = await db
+  let stratQuery = db
     .from("strategies")
     .select("id, name, description, status, created_at")
     .order("created_at", { ascending: false });
+
+  if (userId) stratQuery = stratQuery.eq("user_id", userId);
+
+  const { data: rows, error } = await stratQuery;
 
   if (error) throw new Error(`strategies fetch: ${error.message}`);
 

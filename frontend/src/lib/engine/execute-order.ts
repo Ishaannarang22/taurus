@@ -37,6 +37,8 @@ export interface ExecuteOrderParams {
   strategyId?: string;
   /** agent_runs.id to tag for lineage. */
   createdByRunId?: string;
+  /** Optional hard cap on the dollar notional of this single order. */
+  maxNotional?: number;
 }
 
 export interface ExecuteOrderResult {
@@ -64,6 +66,7 @@ export async function executeOrder(
     notional,
     strategyId,
     createdByRunId,
+    maxNotional,
   } = params;
 
   const failure = (error: string): ExecuteOrderResult => ({
@@ -158,6 +161,7 @@ export async function executeOrder(
     cashBalance: account.cash_balance,
     positionQty,
     positionAvg,
+    maxNotional,
   });
 
   if (!plan.ok) {

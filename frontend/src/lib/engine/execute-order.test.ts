@@ -278,6 +278,25 @@ describe("executeOrder — guardrail rejections (no throw)", () => {
     assert.match(result.error ?? "", /no shorting/);
   });
 
+  test("returns ok:false when quantity-sized notional exceeds maxNotional", async () => {
+    // The harness cannot know fill price for quantity-sized orders, so the
+    // dollar cap must be enforced here, after the quote is fetched.
+    const deps: ExecuteOrderDeps = {
+      supabase: makeMockSupabase({ cashBalance: 1_000_000 }),
+      market: makeMockMarket({ AAPL: 500 }),
+    };
+
+    const result = await executeOrder(deps, {
+      ...BASE_PARAMS,
+      notional: undefined,
+      quantity: 10, // 10 * 500 = 5000 notional
+      maxNotional: 1_000,
+    });
+
+    assert.equal(result.ok, false);
+    assert.match(result.error ?? "", /notional/);
+  });
+
   test("returns ok:false when neither quantity nor notional provided", async () => {
     const deps: ExecuteOrderDeps = {
       supabase: makeMockSupabase({ cashBalance: 10_000 }),

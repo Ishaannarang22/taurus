@@ -185,7 +185,7 @@ export function buildTools(
     },
     async run(): Promise<ToolResult> {
       try {
-        const strategies = await listStrategies(supabase);
+        const strategies = await listStrategies(supabase, ctx.userId);
         return { ok: true, data: strategies };
       } catch (err) {
         return {
@@ -257,6 +257,8 @@ export function buildTools(
           side,
           quantity,
           notional,
+          createdByRunId: scope.runId ?? undefined,
+          maxNotional: scope.maxOrderNotional,
         });
         if (result.ok) {
           return { ok: true, data: result };
