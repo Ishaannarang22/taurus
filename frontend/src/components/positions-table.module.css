@@ -118,3 +118,32 @@
 .neg {
   color: var(--neg);
 }
+
+.actions {
+  width: 104px;
+}
+
+.orderButtons {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.orderButtons a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  height: 26px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.orderButtons a:hover {
+  border-color: var(--ink);
+}

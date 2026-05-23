@@ -12,6 +12,7 @@ import { StrategyChat } from "@/components/strategy-chat";
 import { ArrowIcon } from "@/components/icons";
 import { formatINR, formatINRCompact } from "@/lib/format";
 import { getMarketDataSourceLabel } from "@/lib/market/source";
+import { getKiteHoldingsSnapshot } from "@/lib/kite/holdings";
 import styles from "./page.module.css";
 
 interface PageProps {
@@ -25,9 +26,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const db = await createClient();
 
   // Account (for the equity curve) + full strategy list to find the active one.
-  const [account, strategies] = await Promise.all([
+  const [account, strategies, kiteHoldings] = await Promise.all([
     getOrCreatePaperAccount(db),
     listStrategies(db),
+    getKiteHoldingsSnapshot(),
   ]);
 
   // Resolve which strategy is active: URL param → first in list → null.
@@ -40,12 +42,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   const accountSnapshot = {
     cash: account.cashBalance,
-    invested: account.investedValue,
-    total: account.totalValue,
-    pnl: null,
-    pnlPct: null,
-    source: `Paper · ${getMarketDataSourceLabel()}`,
-    syncedAt: null,
+    invested: kiteHoldings?.holdingsValue ?? account.investedValue,
+    total: account.cashBalance + (kiteHoldings?.holdingsValue ?? account.investedValue),
+    pnl: kiteHoldings?.pnl ?? null,
+    pnlPct: kiteHoldings?.pnlPct ?? null,
+    source: kiteHoldings
+      ? `Paper cash · Kite connected`
+      : `Paper · ${getMarketDataSourceLabel()}`,
+    syncedAt: kiteHoldings?.syncedAt ?? null,
   };
 
   // No strategies yet — show an empty-state prompt.

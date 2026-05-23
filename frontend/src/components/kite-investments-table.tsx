@@ -1,5 +1,6 @@
 import type { KiteInvestmentView } from "@/lib/kite/holdings";
 import { formatINRCompact } from "@/lib/format";
+import { OrderButtons } from "./positions-table";
 import styles from "./positions-table.module.css";
 
 interface Props {
@@ -29,6 +30,7 @@ export function KiteInvestmentsTable({ investments }: Props) {
                 <th className={styles.right}>Value</th>
                 <th className={styles.right}>P&amp;L</th>
                 <th className={styles.right}>Day</th>
+                <th className={styles.right}>Trade</th>
               </tr>
             </thead>
             <tbody>
@@ -68,6 +70,12 @@ export function KiteInvestmentsTable({ investments }: Props) {
                     >
                       {dayIsPositive ? "+" : ""}
                       {investment.dayChangePct.toFixed(2)}%
+                    </td>
+                    <td className={`${styles.actions} ${styles.right}`}>
+                      <OrderButtons
+                        symbol={investment.symbol}
+                        quantity={investment.totalQuantity}
+                      />
                     </td>
                   </tr>
                 );

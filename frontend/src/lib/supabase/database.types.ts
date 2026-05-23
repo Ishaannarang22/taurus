@@ -255,6 +255,7 @@ export type Database = {
           instrument_id: string
           limit_price: number | null
           mode: Database["public"]["Enums"]["trade_mode"]
+          order_type: Database["public"]["Enums"]["order_type"]
           paper_account_id: string | null
           quantity: number
           side: Database["public"]["Enums"]["order_side"]
@@ -274,6 +275,7 @@ export type Database = {
           instrument_id: string
           limit_price?: number | null
           mode?: Database["public"]["Enums"]["trade_mode"]
+          order_type?: Database["public"]["Enums"]["order_type"]
           paper_account_id?: string | null
           quantity: number
           side: Database["public"]["Enums"]["order_side"]
@@ -293,6 +295,7 @@ export type Database = {
           instrument_id?: string
           limit_price?: number | null
           mode?: Database["public"]["Enums"]["trade_mode"]
+          order_type?: Database["public"]["Enums"]["order_type"]
           paper_account_id?: string | null
           quantity?: number
           side?: Database["public"]["Enums"]["order_side"]

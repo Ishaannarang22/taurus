@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { PositionView } from "@/lib/data/types";
 import { formatINRCompact } from "@/lib/format";
 import styles from "./positions-table.module.css";
@@ -30,6 +31,7 @@ export function PositionsTable({ positions }: Props) {
                 <th className={styles.right}>Weight</th>
                 <th className={styles.right}>Value</th>
                 <th className={styles.right}>Day</th>
+                <th className={styles.right}>Trade</th>
               </tr>
             </thead>
             <tbody>
@@ -61,6 +63,9 @@ export function PositionsTable({ positions }: Props) {
                       {day >= 0 ? "+" : ""}
                       {day.toFixed(2)}%
                     </td>
+                    <td className={`${styles.actions} ${styles.right}`}>
+                      <OrderButtons symbol={p.symbol} />
+                    </td>
                   </tr>
                 );
               })}
@@ -69,5 +74,26 @@ export function PositionsTable({ positions }: Props) {
         )}
       </div>
     </div>
+  );
+}
+
+export function OrderButtons({
+  symbol,
+  quantity,
+}: {
+  symbol: string;
+  quantity?: number;
+}) {
+  const qty = quantity && quantity > 0 ? `&quantity=${Math.floor(quantity)}` : "";
+
+  return (
+    <span className={styles.orderButtons}>
+      <Link href={`/orders?symbol=${encodeURIComponent(symbol)}&side=buy${qty}`}>
+        Buy
+      </Link>
+      <Link href={`/orders?symbol=${encodeURIComponent(symbol)}&side=sell${qty}`}>
+        Sell
+      </Link>
+    </span>
   );
 }

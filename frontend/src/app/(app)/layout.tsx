@@ -6,6 +6,7 @@ import { getOrCreatePaperAccount, listStrategies } from "@/lib/data/queries";
 import { createClient } from "@/lib/supabase/server";
 import { formatINR, formatINRCompact } from "@/lib/format";
 import { getMarketDataSourceLabel } from "@/lib/market/source";
+import { getKiteHoldingsSnapshot } from "@/lib/kite/holdings";
 import styles from "./layout.module.css";
 
 // Server component: fetches account + strategies for the sidebar on every
@@ -13,13 +14,16 @@ import styles from "./layout.module.css";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const db = await createClient();
-  const [account, strategies] = await Promise.all([
+  const [account, strategies, kiteHoldings] = await Promise.all([
     getOrCreatePaperAccount(db),
     listStrategies(db),
+    getKiteHoldingsSnapshot(),
   ]);
 
   const count = strategies.length.toString().padStart(2, "0");
   const priceSource = getMarketDataSourceLabel();
+  const investedValue = kiteHoldings?.holdingsValue ?? account.investedValue;
+  const totalValue = account.cashBalance + investedValue;
 
   return (
     <div className={styles.app}>
@@ -39,8 +43,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             {formatINR(account.cashBalance)}
           </div>
           <div className={styles.cashSub}>
-            Invested {formatINRCompact(account.investedValue)} &middot; Total{" "}
-            {formatINRCompact(account.totalValue)}
+            Invested {formatINRCompact(investedValue)} &middot; Total{" "}
+            {formatINRCompact(totalValue)}
           </div>
         </div>
 

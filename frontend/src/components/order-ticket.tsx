@@ -7,9 +7,18 @@ import styles from "./order-ticket.module.css";
 interface Props {
   liveTrading: boolean;
   isAfterHours: boolean;
+  defaultSymbol?: string;
+  defaultSide?: "buy" | "sell";
+  defaultQuantity?: number;
 }
 
-export function OrderTicket({ liveTrading, isAfterHours }: Props) {
+export function OrderTicket({
+  liveTrading,
+  isAfterHours,
+  defaultSymbol = "",
+  defaultSide = "buy",
+  defaultQuantity,
+}: Props) {
   const [state, action, pending] = useActionState(placeManualOrder, undefined);
 
   return (
@@ -25,12 +34,18 @@ export function OrderTicket({ liveTrading, isAfterHours }: Props) {
       <div className={styles.grid}>
         <label className={styles.field}>
           <span>Symbol</span>
-          <input name="symbol" placeholder="RELIANCE" required autoComplete="off" />
+          <input
+            name="symbol"
+            placeholder="RELIANCE"
+            required
+            autoComplete="off"
+            defaultValue={defaultSymbol}
+          />
         </label>
 
         <label className={styles.field}>
           <span>Side</span>
-          <select name="side" defaultValue="buy">
+          <select name="side" defaultValue={defaultSide}>
             <option value="buy">Buy</option>
             <option value="sell">Sell</option>
           </select>
@@ -46,7 +61,15 @@ export function OrderTicket({ liveTrading, isAfterHours }: Props) {
 
         <label className={styles.field}>
           <span>Quantity</span>
-          <input name="quantity" type="number" min="1" step="1" placeholder="1" required />
+          <input
+            name="quantity"
+            type="number"
+            min="1"
+            step="1"
+            placeholder="1"
+            required
+            defaultValue={defaultQuantity}
+          />
         </label>
 
         <label className={styles.field}>

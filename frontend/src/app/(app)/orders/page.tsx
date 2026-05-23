@@ -5,12 +5,19 @@ import { isMarketOpenIST } from "@/lib/kite/orders";
 import { createClient } from "@/lib/supabase/server";
 import styles from "./page.module.css";
 
-export default async function OrdersPage() {
+interface PageProps {
+  searchParams: Promise<{ symbol?: string; side?: string; quantity?: string }>;
+}
+
+export default async function OrdersPage({ searchParams }: PageProps) {
+  const params = await searchParams;
   const db = await createClient();
   const isMarketOpen = isMarketOpenIST();
   const variety = isMarketOpen ? "regular" : "amo";
   const liveTrading = process.env.KITE_LIVE_TRADING === "true";
   const orders = await listPendingOrders(db, variety);
+  const defaultSide = params.side === "sell" ? "sell" : "buy";
+  const defaultQuantity = params.quantity ? Number(params.quantity) : undefined;
 
   return (
     <div className={styles.page}>
@@ -25,7 +32,17 @@ export default async function OrdersPage() {
           <span>{liveTrading ? "LIVE" : "PAPER"} · NSE</span>
         </div>
       </header>
-      <OrderTicket liveTrading={liveTrading} isAfterHours={!isMarketOpen} />
+      <OrderTicket
+        liveTrading={liveTrading}
+        isAfterHours={!isMarketOpen}
+        defaultSymbol={params.symbol?.toUpperCase() ?? ""}
+        defaultSide={defaultSide}
+        defaultQuantity={
+          defaultQuantity && Number.isInteger(defaultQuantity) && defaultQuantity > 0
+            ? defaultQuantity
+            : undefined
+        }
+      />
       <OrdersTable orders={orders} isAfterHours={!isMarketOpen} />
     </div>
   );
