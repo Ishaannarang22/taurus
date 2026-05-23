@@ -12,6 +12,7 @@
  */
 
 import { GoogleGenAI } from "@google/genai";
+import type { Content } from "@google/genai";
 
 export const GEMINI_MODEL = "gemini-3.5-flash";
 
@@ -29,6 +30,7 @@ export interface GenerateContentParams {
 export interface GenerateContentResponse {
   text?: string;
   functionCalls?: Array<{ name: string; args: Record<string, unknown> }>;
+  candidateContent?: Content;
   // The raw SDK response is passed through for callers that need more.
   raw: unknown;
 }
@@ -88,6 +90,7 @@ export function geminiGenerateContent(
         return {
           text: res.text,
           functionCalls: res.functionCalls as GenerateContentResponse["functionCalls"],
+          candidateContent: res.candidates?.[0]?.content,
           raw: res,
         };
       } catch (err) {

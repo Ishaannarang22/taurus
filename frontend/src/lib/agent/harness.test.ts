@@ -392,4 +392,111 @@ describe("runAgent", () => {
       "ctx.maxOrderNotional must reflect the configured limit",
     );
   });
+
+  it("does not send duplicate function declarations when tools include finish", async () => {
+    const supabase = makeFakeSupabase();
+    let seenParams: GenerateContentParams | undefined;
+
+    const fakeFinish = makeFakeTool("finish", async (_args) => ({
+      ok: true,
+      data: { summary: "done" },
+    }));
+
+    const generateContent = async (
+      params: GenerateContentParams,
+    ): Promise<GenerateContentResponse> => {
+      seenParams = params;
+      return {
+        functionCalls: [{ name: "finish", args: { summary: "done" } }],
+        raw: {},
+      };
+    };
+
+    await runAgent(
+      {
+        supabase,
+        market: fakeMarket,
+        generateContent,
+        buildToolsFn: () => [fakeFinish],
+      },
+      {
+        userId: "user-6",
+        accountId: "acct-6",
+        instruction: "Just finish.",
+      },
+    );
+
+    const tools = seenParams?.config?.tools as
+      | Array<{
+          functionDeclarations?: Array<{ name: string }>;
+        }>
+      | undefined;
+    const names = tools?.[0]?.functionDeclarations?.map((decl) => decl.name) ?? [];
+
+    assert.deepEqual(names, ["finish"]);
+    assert.equal(new Set(names).size, names.length);
+  });
+
+  it("preserves Gemini candidate parts with thought signatures across tool turns", async () => {
+    const supabase = makeFakeSupabase();
+    const seenParams: GenerateContentParams[] = [];
+
+    const fakeGetCash = makeFakeTool("get_cash", async () => ({
+      ok: true,
+      data: { cashBalance: 10_000 },
+    }));
+
+    const generateContent = async (
+      params: GenerateContentParams,
+    ): Promise<GenerateContentResponse> => {
+      seenParams.push(params);
+      if (seenParams.length === 1) {
+        return {
+          functionCalls: [{ name: "get_cash", args: {} }],
+          candidateContent: {
+            role: "model",
+            parts: [
+              {
+                functionCall: { name: "get_cash", args: {} },
+                thoughtSignature: "opaque-signature",
+              },
+            ],
+          },
+          raw: {},
+        };
+      }
+
+      return {
+        functionCalls: [{ name: "finish", args: { summary: "done" } }],
+        raw: {},
+      };
+    };
+
+    await runAgent(
+      {
+        supabase,
+        market: fakeMarket,
+        generateContent,
+        buildToolsFn: () => [fakeGetCash],
+      },
+      {
+        userId: "user-7",
+        accountId: "acct-7",
+        instruction: "Check cash.",
+      },
+    );
+
+    const secondContents = seenParams[1]?.contents as
+      | Array<{
+          role: string;
+          parts: Array<{ thoughtSignature?: string }>;
+        }>
+      | undefined;
+    const modelTurn = secondContents?.find((turn) => turn.role === "model");
+
+    assert.equal(
+      modelTurn?.parts[0]?.thoughtSignature,
+      "opaque-signature",
+    );
+  });
 });

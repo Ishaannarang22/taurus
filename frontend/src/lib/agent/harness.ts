@@ -27,6 +27,7 @@ import {
 import { buildTools, type BuildToolsDeps } from "./tools";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
+import type { Part as GeminiPart } from "@google/genai";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -77,10 +78,7 @@ If a tool returns an error, log it mentally and decide whether to retry, skip, o
 // Conversation content helpers
 // ---------------------------------------------------------------------------
 
-type Part =
-  | { text: string }
-  | { functionCall: { name: string; args: Record<string, unknown> } }
-  | { functionResponse: { name: string; response: unknown } };
+type Part = GeminiPart;
 
 interface ConversationTurn {
   role: "user" | "model";
@@ -135,7 +133,7 @@ export async function runAgent(
   // --- 2. Build tools ---
   const tools = deps.buildToolsFn ? deps.buildToolsFn(ctx) : buildTools(deps, ctx);
 
-  // Inject finish tool (always present, not part of buildTools contract)
+  // Inject a fallback finish tool when a custom test/tool builder omits one.
   const finishTool: AgentTool = {
     name: "finish",
     declaration: {
@@ -159,7 +157,9 @@ export async function runAgent(
     },
   };
 
-  const allTools: AgentTool[] = [...tools, finishTool];
+  const allTools: AgentTool[] = tools.some((tool) => tool.name === "finish")
+    ? tools
+    : [...tools, finishTool];
   const toolMap = new Map<string, AgentTool>(
     allTools.map((t) => [t.name, t]),
   );
@@ -209,14 +209,18 @@ export async function runAgent(
         break;
       }
 
-      // Append model turn to conversation
-      const modelParts: Part[] = [];
-      if (response.text) {
-        modelParts.push({ text: response.text });
-      }
-      if (response.functionCalls) {
-        for (const fc of response.functionCalls) {
-          modelParts.push({ functionCall: { name: fc.name, args: fc.args } });
+      // Append the model turn to conversation. When Gemini returns candidate
+      // content, preserve it verbatim so opaque fields like thoughtSignature
+      // survive into the next request.
+      const modelParts: Part[] = response.candidateContent?.parts ?? [];
+      if (modelParts.length === 0) {
+        if (response.text) {
+          modelParts.push({ text: response.text });
+        }
+        if (response.functionCalls) {
+          for (const fc of response.functionCalls) {
+            modelParts.push({ functionCall: { name: fc.name, args: fc.args } });
+          }
         }
       }
       if (modelParts.length > 0) {
@@ -244,7 +248,10 @@ export async function runAgent(
           };
           toolCalls.push({ name: toolName, args: fc.args, result });
           responseParts.push({
-            functionResponse: { name: toolName, response: result },
+            functionResponse: {
+              name: toolName,
+              response: result as unknown as Record<string, unknown>,
+            },
           });
           notes.push(`Unknown tool called: ${toolName}`);
           continue;
@@ -255,7 +262,10 @@ export async function runAgent(
           const result = await tool.run(fc.args, ctx);
           toolCalls.push({ name: toolName, args: fc.args, result });
           responseParts.push({
-            functionResponse: { name: toolName, response: result },
+            functionResponse: {
+              name: toolName,
+              response: result as unknown as Record<string, unknown>,
+            },
           });
           summary =
             typeof fc.args.summary === "string"
@@ -277,7 +287,10 @@ export async function runAgent(
             };
             toolCalls.push({ name: toolName, args: fc.args, result });
             responseParts.push({
-              functionResponse: { name: toolName, response: result },
+              functionResponse: {
+                name: toolName,
+                response: result as unknown as Record<string, unknown>,
+              },
             });
             notes.push("maxOrders cap reached — order rejected.");
             continue;
@@ -298,7 +311,10 @@ export async function runAgent(
             };
             toolCalls.push({ name: toolName, args: fc.args, result });
             responseParts.push({
-              functionResponse: { name: toolName, response: result },
+              functionResponse: {
+                name: toolName,
+                response: result as unknown as Record<string, unknown>,
+              },
             });
             notes.push(
               `Order notional $${argNotional.toFixed(2)} rejected (limit $${limits.maxOrderNotional}).`,
@@ -319,7 +335,10 @@ export async function runAgent(
 
         toolCalls.push({ name: toolName, args: fc.args, result });
         responseParts.push({
-          functionResponse: { name: toolName, response: result },
+          functionResponse: {
+            name: toolName,
+            response: result as unknown as Record<string, unknown>,
+          },
         });
 
         // Count successful place_order calls

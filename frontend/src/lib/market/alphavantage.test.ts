@@ -220,11 +220,39 @@ describe("AlphaVantageProvider", () => {
     assert.ok(quotes.some((q) => q.symbol === "MSFT"));
   });
 
-  it("getQuotes fetches sequentially (no parallelism)", async () => {
-    const order: string[] = [];
+  it("getQuotes makes a SINGLE batched request on a premium key", async () => {
+    let calls = 0;
     const fetch: typeof globalThis.fetch = async (url) => {
-      const symbol = new URL(String(url)).searchParams.get("symbol") ?? "";
-      order.push(symbol);
+      calls++;
+      const fn = new URL(String(url)).searchParams.get("function");
+      assert.equal(fn, "REALTIME_BULK_QUOTES", "must use the bulk endpoint");
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            { symbol: "A", close: "10.00", timestamp: "2024-05-22 16:00:00" },
+            { symbol: "B", close: "20.00", timestamp: "2024-05-22 16:00:00" },
+            { symbol: "C", close: "30.00", timestamp: "2024-05-22 16:00:00" },
+          ],
+        }),
+      } as unknown as Response;
+    };
+
+    const provider = new AlphaVantageProvider({ apiKey: "demo", premium: true, fetch });
+    const quotes = await provider.getQuotes(["A", "B", "C"]);
+
+    assert.equal(calls, 1, "one batched request for all symbols");
+    assert.equal(quotes.length, 3);
+    assert.equal(quotes.find((q) => q.symbol === "B")?.price, 20);
+  });
+
+  it("getQuotes uses per-symbol GLOBAL_QUOTE on a free-tier key (no bulk)", async () => {
+    const functionsUsed: string[] = [];
+    const fetch: typeof globalThis.fetch = async (url) => {
+      const params = new URL(String(url)).searchParams;
+      functionsUsed.push(params.get("function") ?? "");
+      const symbol = params.get("symbol") ?? "";
       return {
         ok: true,
         status: 200,
@@ -232,9 +260,15 @@ describe("AlphaVantageProvider", () => {
       } as unknown as Response;
     };
 
+    // Default (non-premium): must never call the bulk endpoint.
     const provider = new AlphaVantageProvider({ apiKey: "demo", fetch });
-    await provider.getQuotes(["A", "B", "C"]);
+    const quotes = await provider.getQuotes(["A", "B", "C"]);
 
-    assert.deepEqual(order, ["A", "B", "C"], "symbols must be fetched in order");
+    assert.ok(
+      !functionsUsed.includes("REALTIME_BULK_QUOTES"),
+      "free-tier must not use the sample-data bulk endpoint",
+    );
+    assert.deepEqual(functionsUsed, ["GLOBAL_QUOTE", "GLOBAL_QUOTE", "GLOBAL_QUOTE"]);
+    assert.equal(quotes.length, 3);
   });
 });

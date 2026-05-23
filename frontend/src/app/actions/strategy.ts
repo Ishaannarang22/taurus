@@ -8,6 +8,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { generateBasket } from "@/lib/gemini/generate";
 import type { StrategySpec } from "@/lib/domain/types";
 
@@ -104,13 +105,14 @@ export async function saveStrategyAction(
   const missingSymbols = uniqueSymbols.filter((symbol) => !symbolToId.has(symbol));
 
   if (missingSymbols.length > 0) {
+    const serviceSupabase = createServiceClient();
     const instrumentInserts = missingSymbols.map((symbol) => ({
       symbol,
       asset_type: "stock" as const,
       currency: "USD",
     }));
 
-    const { data: createdInstruments, error: createInstrError } = await supabase
+    const { data: createdInstruments, error: createInstrError } = await serviceSupabase
       .from("instruments")
       .insert(instrumentInserts)
       .select("id, symbol");

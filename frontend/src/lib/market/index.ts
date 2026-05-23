@@ -17,5 +17,9 @@ export function getMarketDataProvider(): MarketDataProvider {
       "ALPHA_VANTAGE_API_KEY is not set. Add it to your server environment."
     );
   }
-  return new AlphaVantageProvider({ apiKey });
+  // The batched REALTIME_BULK_QUOTES endpoint is premium-only; on the free tier
+  // it returns sample data (wrong symbols/prices). Only enable batching when the
+  // key is premium, via ALPHA_VANTAGE_PREMIUM=true.
+  const premium = process.env.ALPHA_VANTAGE_PREMIUM === "true";
+  return new AlphaVantageProvider({ apiKey, premium });
 }
