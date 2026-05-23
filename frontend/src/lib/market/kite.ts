@@ -1,0 +1,222 @@
+/**
+ * Zerodha Kite Connect LTP provider — server-only.
+ *
+ * Uses the /quote/ltp endpoint (cheapest: last_price only).
+ * All symbols are passed as NSE:<SYMBOL> query params; the response maps
+ * them back to bare symbols in the returned Quote objects.
+ *
+ * Rate-limit policy (Kite: 1 req/s for /quote*):
+ *   - A minimum 1-second interval is enforced between consecutive requests.
+ *     Requests are serialised through a promise chain so that concurrent callers
+ *     do not race past the throttle.
+ *
+ * Environment variables (server-side only):
+ *   KITE_API_KEY        — your Kite Connect app key
+ *   KITE_ACCESS_TOKEN   — the daily session token (refresh after ~7:30 AM IST)
+ *
+ * Both vars must be set; a clear Error is thrown at call time if either is missing.
+ *
+ * Never import this file in browser code.
+ */
+
+import type { MarketDataProvider, Quote } from "@/lib/domain/types";
+
+// ---------------------------------------------------------------------------
+// Typed error
+// ---------------------------------------------------------------------------
+
+/** Thrown when the Kite API returns a status:"error" payload. */
+export class KiteError extends Error {
+  readonly errorType: string;
+  readonly statusCode: number | undefined;
+
+  constructor(message: string, errorType: string, statusCode?: number) {
+    super(message);
+    this.name = "KiteError";
+    this.errorType = errorType;
+    this.statusCode = statusCode;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Provider options
+// ---------------------------------------------------------------------------
+
+interface KiteProviderOptions {
+  /** Override fetch for testing — defaults to globalThis.fetch. */
+  fetch?: typeof globalThis.fetch;
+  /**
+   * Override the env read so tests can inject credentials without touching
+   * process.env. Defaults to reading KITE_API_KEY / KITE_ACCESS_TOKEN.
+   */
+  apiKey?: string;
+  accessToken?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Response shapes
+// ---------------------------------------------------------------------------
+
+interface LtpEntry {
+  instrument_token: number;
+  last_price: number;
+}
+
+interface KiteSuccessResponse {
+  status: "success";
+  data: Record<string, LtpEntry>;
+}
+
+interface KiteErrorResponse {
+  status: "error";
+  message: string;
+  error_type: string;
+}
+
+type KiteResponse = KiteSuccessResponse | KiteErrorResponse;
+
+// ---------------------------------------------------------------------------
+// KiteProvider
+// ---------------------------------------------------------------------------
+
+const KITE_BASE = "https://api.kite.trade";
+
+export class KiteProvider implements MarketDataProvider {
+  private readonly fetchFn: typeof globalThis.fetch;
+  private readonly apiKey: string;
+  private readonly accessToken: string;
+
+  /**
+   * Throttle state: a promise that resolves no earlier than 1 s after the
+   * last request was dispatched. All callers chain onto it so requests are
+   * serialised with at least a 1 s gap.
+   */
+  private lastRequest: Promise<void> = Promise.resolve();
+
+  constructor(options: KiteProviderOptions = {}) {
+    this.fetchFn = options.fetch ?? globalThis.fetch;
+
+    // Allow injected credentials (for tests); otherwise read from env.
+    const apiKey = options.apiKey ?? process.env.KITE_API_KEY;
+    const accessToken = options.accessToken ?? process.env.KITE_ACCESS_TOKEN;
+
+    if (!apiKey) {
+      throw new Error(
+        "KITE_API_KEY is not set. Add it to your server environment."
+      );
+    }
+    if (!accessToken) {
+      throw new Error(
+        "KITE_ACCESS_TOKEN is not set. Add it to your server environment."
+      );
+    }
+
+    this.apiKey = apiKey;
+    this.accessToken = accessToken;
+  }
+
+  // -------------------------------------------------------------------------
+  // Public interface
+  // -------------------------------------------------------------------------
+
+  /** Fetches the last-traded price for a single NSE symbol (e.g. "RELIANCE"). */
+  async getQuote(symbol: string): Promise<Quote> {
+    const quotes = await this.getQuotes([symbol]);
+    const found = quotes.find(
+      (q) => q.symbol.toUpperCase() === symbol.toUpperCase()
+    );
+    if (!found) {
+      throw new KiteError(
+        `No quote returned for ${symbol}`,
+        "DataException"
+      );
+    }
+    return found;
+  }
+
+  /**
+   * Fetches last-traded prices for multiple NSE symbols in a SINGLE request.
+   * All symbols are prefixed with "NSE:" internally; the returned Quotes use
+   * the bare symbol (e.g. "RELIANCE").
+   */
+  async getQuotes(symbols: string[]): Promise<Quote[]> {
+    if (symbols.length === 0) return [];
+
+    const unique = [...new Set(symbols.map((s) => s.toUpperCase()))];
+    const data = await this.throttledLtp(unique);
+
+    const now = new Date().toISOString();
+    const results: Quote[] = [];
+
+    for (const sym of unique) {
+      const key = `NSE:${sym}`;
+      const entry = data[key];
+      if (!entry) continue; // Kite silently omits unknown instruments
+      results.push({ symbol: sym, price: entry.last_price, asOf: now });
+    }
+
+    return results;
+  }
+
+  // -------------------------------------------------------------------------
+  // Private helpers
+  // -------------------------------------------------------------------------
+
+  /**
+   * Dispatches a /quote/ltp request after waiting for the throttle window.
+   * Ensures ≤1 request/second by chaining onto the previous request promise.
+   */
+  private throttledLtp(
+    symbols: string[]
+  ): Promise<Record<string, LtpEntry>> {
+    // Chain: wait for previous request + 1 s gap, then run this one.
+    const result = this.lastRequest.then(() => this.fetchLtp(symbols));
+
+    // The new "last request" resolves 1 s after the current one finishes
+    // (whether it succeeded or failed) so the next caller waits a full second.
+    this.lastRequest = result.then(
+      () => new Promise<void>((res) => setTimeout(res, 1000)),
+      () => new Promise<void>((res) => setTimeout(res, 1000))
+    );
+
+    return result;
+  }
+
+  /** Performs the actual HTTP call to GET /quote/ltp. */
+  private async fetchLtp(
+    symbols: string[]
+  ): Promise<Record<string, LtpEntry>> {
+    // Build query string: ?i=NSE:RELIANCE&i=NSE:TCS&...
+    const params = symbols
+      .map((s) => `i=${encodeURIComponent(`NSE:${s}`)}`)
+      .join("&");
+
+    const url = `${KITE_BASE}/quote/ltp?${params}`;
+
+    let raw: KiteResponse;
+    try {
+      const res = await this.fetchFn(url, {
+        headers: {
+          Authorization: `token ${this.apiKey}:${this.accessToken}`,
+          "X-Kite-Version": "3",
+        },
+      });
+      raw = (await res.json()) as KiteResponse;
+    } catch (err) {
+      if (err instanceof KiteError) throw err;
+      throw new KiteError(
+        `Network error fetching LTP: ${String(err)}`,
+        "NetworkException"
+      );
+    }
+
+    if (raw.status === "error") {
+      throw new KiteError(
+        `Kite API error: ${raw.message}`,
+        raw.error_type
+      );
+    }
+
+    return raw.data;
+  }
+}
