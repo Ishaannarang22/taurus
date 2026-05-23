@@ -1,0 +1,76 @@
+/* ============================================================
+   Agent page — fills the main column from (app)/layout.tsx
+   ============================================================ */
+
+.page {
+  display: grid;
+  grid-template-rows: 56px 1fr;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* ===== Header ===== */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.titleSub {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-mute);
+  text-decoration: none;
+  letter-spacing: 0.02em;
+  transition: color 0.08s ease;
+}
+
+.backLink:hover {
+  color: var(--ink);
+}
+
+/* Flip the arrow so it points left */
+.backLink svg {
+  width: 14px;
+  height: 14px;
+  transform: rotate(180deg);
+}
