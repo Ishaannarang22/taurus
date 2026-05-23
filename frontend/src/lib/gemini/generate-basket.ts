@@ -45,7 +45,7 @@ Rules:
      "name": string (concise basket name, max 120 chars),
      "description": string (1-3 sentences explaining the thesis, max 2000 chars),
      "legs": array of {
-       "symbol": string (uppercase NSE trading symbol, max 8 chars),
+       "symbol": string (uppercase NSE trading symbol, no exchange prefix / no ".NS", up to 24 chars),
        "weight": number (positive, fraction of account capital, 0 < weight <= 1),
        "entryPrice": number | null (specific limit price threshold in ₹ or null for market),
        "side": "buy" | "sell"

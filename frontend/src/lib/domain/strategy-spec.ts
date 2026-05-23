@@ -12,7 +12,9 @@ export const basketLegSchema = z.object({
     .string()
     .trim()
     .min(1)
-    .max(8)
+    // NSE trading symbols can exceed the old US-ticker cap of 8
+    // (e.g. BAJFINANCE, HINDUNILVR, TATAMOTORS, BAJAJ-AUTO, M&MFIN).
+    .max(24)
     .transform((s) => s.toUpperCase()),
   weight: z.number().gt(0).lte(1),
   entryPrice: z.number().positive().nullable(),
