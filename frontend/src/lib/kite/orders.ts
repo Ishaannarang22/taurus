@@ -162,6 +162,10 @@ export async function placeKiteOrder(params: PlaceOrderParams): Promise<KiteOrde
     tag: "taurus",
   });
 
+  if (orderType === "MARKET") {
+    body.set("market_protection", "-1");
+  }
+
   if (orderType === "LIMIT") {
     if (limitPrice == null) {
       return { ok: false, error: "limitPrice is required when orderType is LIMIT" };
