@@ -1,6 +1,6 @@
 # Taurus
 
-**Prompt-driven investing.** Describe a strategy in plain English — "invest $4,000 in AI companies" — and Taurus's AI agent designs a weighted stock basket, funds it from your paper account, executes the orders, and then manages the portfolio on a daily schedule.
+**Prompt-driven investing.** Describe a strategy in plain English (for example, "invest $4,000 in AI companies") and Taurus's AI agent designs a weighted stock basket, funds it from your paper account, executes the orders, and then manages the portfolio on a daily schedule.
 
 **Live:** https://taurus-nu.vercel.app
 
@@ -8,9 +8,9 @@
 
 ## What it does
 
-- **Natural-language strategy generation.** A Gemini-powered generator turns a prompt into a declarative `StrategySpec` — a basket of stocks with target weights, entry prices, a rebalance rule, and a cash reserve. Nothing is persisted until you confirm the spec ("ETF on demand").
+- **Natural-language strategy generation.** A Gemini-powered generator turns a prompt into a declarative `StrategySpec`: a basket of stocks with target weights, entry prices, a rebalance rule, and a cash reserve. Nothing is persisted until you confirm the spec ("ETF on demand").
 - **Deterministic paper-trading engine.** A dependency-injected execution engine fills orders against real market prices, tracks positions, average entry price, and cash, and is idempotent per (strategy, account, day) so scheduler retries never double-fill.
-- **Autonomous portfolio agent.** A daily cron drives a Gemini tool-calling loop (`get_quote`, `get_positions`, `get_cash`, `get_strategies`, `place_order`) that reviews each account and acts. Guardrails — max orders per run, max order notional, long-only — are enforced in code, not by the prompt.
+- **Autonomous portfolio agent.** A daily cron drives a Gemini tool-calling loop (`get_quote`, `get_positions`, `get_cash`, `get_strategies`, `place_order`) that reviews each account and acts. Guardrails (max orders per run, max order notional, long-only) are enforced in code, not by the prompt.
 - **Real market data.** Quotes come from Zerodha Kite Connect when a session token is present, with Alpha Vantage as the fallback source, behind a common `MarketDataProvider` interface.
 - **Optional live execution.** With `KITE_LIVE_TRADING=true`, buy orders route to Zerodha as real regular/AMO orders instead of paper fills. Off by default; everything else stays paper.
 - **Per-user isolation.** Supabase handles auth and Postgres storage; every server action verifies the session and scopes strategies, accounts, orders, positions, and agent runs to the signed-in user. Middleware refreshes sessions and gates all app routes.
@@ -27,7 +27,7 @@ frontend/                    Next.js 16 app (App Router, Turbopack)
 │   ├── (app)/               /dashboard, /strategies/new, /agent, /orders, /investments
 │   ├── actions/             Server Actions (strategy generation, orders, agent)
 │   └── api/cron/            /api/cron/run (daily strategy execution),
-│                            /api/cron/agent (daily agent run) — Vercel crons
+│                            /api/cron/agent (daily agent run): Vercel crons
 └── src/lib/
     ├── domain/              Shared types: StrategySpec, ExecutionEngine, MarketDataProvider
     ├── gemini/              Throttled Gemini client + basket generation
@@ -47,13 +47,13 @@ Data lives in Supabase Postgres: `profiles`, `paper_accounts`, `strategies`, `st
 ## Tech stack
 
 - **Next.js 16** (App Router, Server Actions, Turbopack) + **React 19** + **TypeScript**
-- **Supabase** — auth (`@supabase/ssr`) and Postgres
-- **Google Gemini** (`@google/genai`) — strategy generation and the agent loop
-- **Zerodha Kite Connect** — live quotes, holdings, and optional live order routing
-- **Alpha Vantage** — fallback market data
-- **Chart.js** — performance charts
-- **Zod** — runtime validation
-- **Vercel** — hosting and cron scheduling (`vercel.json`)
+- **Supabase**: auth (`@supabase/ssr`) and Postgres
+- **Google Gemini** (`@google/genai`): strategy generation and the agent loop
+- **Zerodha Kite Connect**: live quotes, holdings, and optional live order routing
+- **Alpha Vantage**: fallback market data
+- **Chart.js**: performance charts
+- **Zod**: runtime validation
+- **Vercel**: hosting and cron scheduling (`vercel.json`)
 
 ## Local setup
 
@@ -74,7 +74,7 @@ Required env vars (see `frontend/.env.example`):
 | `GEMINI_API_KEY` | Strategy generation + agent |
 | `ALPHA_VANTAGE_API_KEY` | Fallback market data |
 | `KITE_API_KEY`, `KITE_ACCESS_TOKEN` | Kite quotes/holdings (optional) |
-| `KITE_LIVE_TRADING` | `true` routes real orders to Zerodha — leave unset for paper |
+| `KITE_LIVE_TRADING` | `true` routes real orders to Zerodha; leave unset for paper |
 | `CRON_SECRET` | Authorizes the Vercel cron endpoints |
 
 Useful commands (from `frontend/`):
